@@ -719,12 +719,22 @@ with left_panel:
         params.video_language = video_languages[selected_index][1]
 
         with st.expander(tr("Advanced Script Settings"), expanded=False):
-            params.paragraph_number = st.slider(
+            params.paragraph_number = st.number_input(
                 tr("Script Paragraph Number"),
                 min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
                 max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
                 value=st.session_state.get("paragraph_number_input", 1),
+                step=1,
                 key="paragraph_number_input",
+            )
+            params.script_word_count = st.number_input(
+                "Target Word Count (Optional) / Số chữ",
+                min_value=0,
+                max_value=10000,
+                value=st.session_state.get("script_word_count_input", 0),
+                step=50,
+                key="script_word_count_input",
+                help="Nhập số lượng chữ (từ) mong muốn cho kịch bản. Để 0 nếu muốn AI tự quyết định."
             )
             params.video_script_prompt = st.text_area(
                 tr("Custom Script Requirements"),
@@ -761,6 +771,7 @@ with left_panel:
                     paragraph_number=params.paragraph_number,
                     video_script_prompt=params.video_script_prompt,
                     custom_system_prompt=params.custom_system_prompt,
+                    script_word_count=params.script_word_count,
                 )
                 terms = llm.generate_terms(
                     params.video_subject,
@@ -816,21 +827,33 @@ with middle_panel:
             (tr("Xiaohongshu"), "xiaohongshu"),
         ]
 
-        saved_video_source_name = config.app.get("video_source", "pexels")
-        saved_video_source_index = [v[1] for v in video_sources].index(
-            saved_video_source_name
-        )
+        saved_video_source = config.app.get("video_source", ["pexels"])
+        if isinstance(saved_video_source, str):
+            saved_video_source = [saved_video_source]
 
-        selected_index = st.selectbox(
+        saved_video_source_indices = []
+        for v in saved_video_source:
+            for i, vs in enumerate(video_sources):
+                if vs[1] == v:
+                    saved_video_source_indices.append(i)
+                    break
+        if not saved_video_source_indices:
+            saved_video_source_indices = [0]
+
+        selected_indices = st.multiselect(
             tr("Video Source"),
             options=range(len(video_sources)),
             format_func=lambda x: video_sources[x][0],
-            index=saved_video_source_index,
+            default=saved_video_source_indices,
         )
-        params.video_source = video_sources[selected_index][1]
+        if not selected_indices:
+            params.video_source = ["pexels"]
+        else:
+            params.video_source = [video_sources[i][1] for i in selected_indices]
+            
         config.app["video_source"] = params.video_source
 
-        if params.video_source == "local":
+        if "local" in params.video_source:
             # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
             local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
             uploaded_files = st.file_uploader(
@@ -838,6 +861,15 @@ with middle_panel:
                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
             )
+
+        local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
+        local_option_files = st.file_uploader(
+            "Video Source Local (Option)",
+            type=local_file_types + [file_type.upper() for file_type in local_file_types],
+            accept_multiple_files=True,
+            key="local_option_files_uploader",
+            help="Tải video của bạn lên đây để hệ thống ưu tiên sử dụng. Nếu thiếu, hệ thống sẽ tự động tải thêm từ internet."
+        )
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),
@@ -1447,22 +1479,24 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "coverr", "local"]:
+    if not params.video_source:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
+        
+    source_list = params.video_source if isinstance(params.video_source, list) else [params.video_source]
 
-    if params.video_source == "pexels" and not config.app.get("pexels_api_keys", ""):
+    if "pexels" in source_list and not config.app.get("pexels_api_keys", ""):
         st.error(tr("Please Enter the Pexels API Key"))
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source == "pixabay" and not config.app.get("pixabay_api_keys", ""):
+    if "pixabay" in source_list and not config.app.get("pixabay_api_keys", ""):
         st.error(tr("Please Enter the Pixabay API Key"))
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source == "coverr" and not config.app.get("coverr_api_keys", ""):
+    if "coverr" in source_list and not config.app.get("coverr_api_keys", ""):
         st.error(tr("Please Enter the Coverr API Key"))
         scroll_to_bottom()
         st.stop()
@@ -1477,6 +1511,19 @@ if start_button:
         with open(custom_audio_path, "wb") as f:
             f.write(uploaded_audio_file.getbuffer())
         params.custom_audio_file = custom_audio_path
+
+    if local_option_files:
+        local_videos_dir = utils.storage_dir("local_videos", create=True)
+        params.local_materials = []
+        for file in local_option_files:
+            file_path = os.path.join(local_videos_dir, f"opt_{file.file_id}_{file.name}")
+            if not os.path.exists(file_path):
+                with open(file_path, "wb") as f:
+                    f.write(file.getbuffer())
+            m = MaterialInfo()
+            m.provider = "local"
+            m.url = file_path
+            params.local_materials.append(m)
 
     if uploaded_files:
         local_videos_dir = utils.storage_dir("local_videos", create=True)
@@ -1500,7 +1547,7 @@ if start_button:
                 )
         # 将已上传并保存到本地的视频素材写入会话，供后续只改文案时直接复用。
         st.session_state["local_video_materials"] = persisted_local_materials
-    elif params.video_source == "local" and st.session_state["local_video_materials"]:
+    elif "local" in source_list and st.session_state["local_video_materials"]:
         # 当用户没有重新上传文件时，复用最近一次已经保存到磁盘的本地素材列表。
         params.video_materials = []
         for material in st.session_state["local_video_materials"]:

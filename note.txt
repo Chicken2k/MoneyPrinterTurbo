@@ -1,0 +1,19 @@
+Cách A: Cài đặt uv rồi chạy tiếp (Khuyên dùng)
+Cài đặt uv rồi chạy tiếp (Khuyên dùng)
+Bạn có thể làm theo gợi ý của Terminal bằng cách cài đặt uv qua snap, hoặc dùng lệnh cài đặt chính thức. Hãy chạy lệnh sau:
+
+bash
+sudo snap install astral-uv
+(Bạn sẽ cần nhập mật khẩu máy tính)
+
+Sau khi cài đặt xong uv, bạn chạy lại các lệnh lúc nãy:
+
+bash
+uv python install 3.11
+uv sync --frozen
+sh webui.sh
+
+=====
+
+API Key = sk-2d573f961b754a56b0aa53d3cf2b446e
+Pexels API Key = csvBgf8x9CNQkDmXAqwQoyKWwnNzLfnOGNWlQgRXdXAaPdgPt3D0O9Pg

@@ -1,7 +1,7 @@
 import os
 import random
 import threading
-from typing import List
+from typing import List, Union
 from urllib.parse import urlencode
 
 import requests
@@ -304,18 +304,25 @@ def save_video(video_url: str, save_dir: str = "") -> str:
 def download_videos(
     task_id: str,
     search_terms: List[str],
-    source: str = "pexels",
+    source: Union[str, List[str]] = "pexels",
     video_aspect: VideoAspect = VideoAspect.portrait,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
-    search_videos = search_videos_pexels
-    if source == "pixabay":
-        search_videos = search_videos_pixabay
-    elif source == "coverr":
-        search_videos = search_videos_coverr
+    sources = source if isinstance(source, list) else [source]
+    search_funcs = []
+    for s in sources:
+        if s == "pexels":
+            search_funcs.append(search_videos_pexels)
+        elif s == "pixabay":
+            search_funcs.append(search_videos_pixabay)
+        elif s == "coverr":
+            search_funcs.append(search_videos_coverr)
+            
+    if not search_funcs:
+        search_funcs.append(search_videos_pexels)
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
@@ -327,7 +334,7 @@ def download_videos(
         return _download_videos_by_script_order(
             task_id=task_id,
             search_terms=search_terms,
-            search_videos=search_videos,
+            search_funcs=search_funcs,
             video_aspect=video_aspect,
             audio_duration=audio_duration,
             max_clip_duration=max_clip_duration,
@@ -338,14 +345,18 @@ def download_videos(
     valid_video_urls = []
     found_duration = 0.0
     for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
+        all_items_for_term = []
+        for search_videos in search_funcs:
+            video_items = search_videos(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+            all_items_for_term.extend(video_items)
+            
+        logger.info(f"found {len(all_items_for_term)} videos for '{search_term}'")
 
-        for item in video_items:
+        for item in all_items_for_term:
             if item.url not in valid_video_urls:
                 valid_video_items.append(item)
                 valid_video_urls.append(item.url)
@@ -386,7 +397,7 @@ def download_videos(
 def _download_videos_by_script_order(
     task_id: str,
     search_terms: List[str],
-    search_videos,
+    search_funcs: List[callable],
     video_aspect: VideoAspect,
     audio_duration: float,
     max_clip_duration: int,
@@ -407,15 +418,19 @@ def _download_videos_by_script_order(
     found_duration = 0.0
 
     for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
+        all_items_for_term = []
+        for search_videos in search_funcs:
+            video_items = search_videos(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+            all_items_for_term.extend(video_items)
+            
+        logger.info(f"found {len(all_items_for_term)} videos for '{search_term}'")
 
         term_items = []
-        for item in video_items:
+        for item in all_items_for_term:
             if item.url in valid_video_urls:
                 continue
             term_items.append(item)

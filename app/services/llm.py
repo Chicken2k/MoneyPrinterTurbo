@@ -598,6 +598,7 @@ def build_script_prompt(
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    script_word_count: int = 0,
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
@@ -616,6 +617,8 @@ def build_script_prompt(
 - video subject: {video_subject}
 - number of paragraphs: {paragraph_number}
 """.rstrip()
+    if script_word_count and script_word_count > 0:
+        prompt += f"\n- target word count: strictly around {script_word_count} words"
     if language:
         prompt += f"\n- language: {language}"
     if video_script_prompt:
@@ -634,6 +637,7 @@ def generate_script(
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    script_word_count: int = 0,
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
@@ -648,11 +652,13 @@ def generate_script(
         paragraph_number=paragraph_number,
         video_script_prompt=video_script_prompt,
         custom_system_prompt=custom_system_prompt,
+        script_word_count=script_word_count,
     )
     final_script = ""
     logger.info(
         "generating video script: "
         f"subject={video_subject}, paragraph_number={paragraph_number}, "
+        f"script_word_count={script_word_count}, "
         f"has_custom_prompt={bool(video_script_prompt.strip())}, "
         f"has_custom_system_prompt={bool(custom_system_prompt.strip())}"
     )

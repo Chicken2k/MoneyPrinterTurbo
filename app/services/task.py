@@ -23,6 +23,7 @@ def generate_script(task_id, params):
             paragraph_number=params.paragraph_number,
             video_script_prompt=params.video_script_prompt,
             custom_system_prompt=params.custom_system_prompt,
+            script_word_count=getattr(params, "script_word_count", 0),
         )
     else:
         logger.debug(f"video script: \n{video_script}")
@@ -170,43 +171,64 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
-    if params.video_source == "local":
-        logger.info("\n\n## preprocess local materials")
+    local_paths = []
+    local_duration = 0.0
+
+    if getattr(params, "local_materials", None):
+        logger.info("\n\n## preprocess local option materials")
         materials = video.preprocess_video(
-            materials=params.video_materials, clip_duration=params.video_clip_duration
+            materials=params.local_materials, clip_duration=params.video_clip_duration
         )
-        if not materials:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            logger.error(
-                "no valid materials found, please check the materials and try again."
+        if materials:
+            local_paths = [m.url for m in materials]
+            local_duration += len(materials) * params.video_clip_duration
+            logger.info(f"local option materials provided {local_duration} seconds of video")
+
+    source_list = params.video_source if isinstance(params.video_source, list) else [params.video_source]
+
+    if "local" in source_list:
+        if not getattr(params, "local_materials", None) and params.video_materials:
+            logger.info("\n\n## preprocess local materials")
+            materials = video.preprocess_video(
+                materials=params.video_materials, clip_duration=params.video_clip_duration
             )
+            if materials:
+                local_paths.extend([material_info.url for material_info in materials])
+                local_duration += len(materials) * params.video_clip_duration
+                
+    remote_sources = [s for s in source_list if s != "local"]
+    remaining_duration = (audio_duration * params.video_count) - local_duration
+
+    if remaining_duration <= 0 or not remote_sources:
+        if not local_paths:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("no valid materials found, please check the materials and try again.")
             return None
-        return [material_info.url for material_info in materials]
-    else:
-        logger.info(f"\n\n## downloading videos from {params.video_source}")
-        # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
-        # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
-        downloaded_videos = material.download_videos(
-            task_id=task_id,
-            search_terms=video_terms,
-            source=params.video_source,
-            video_aspect=params.video_aspect,
-            video_concat_mode=(
-                VideoConcatMode.sequential
-                if params.match_materials_to_script
-                else params.video_concat_mode
-            ),
-            audio_duration=audio_duration * params.video_count,
-            max_clip_duration=params.video_clip_duration,
-            match_script_order=params.match_materials_to_script,
+        logger.info("local materials are enough to cover the audio duration.")
+        return local_paths
+
+    logger.info(f"\n\n## downloading videos from {remote_sources} for remaining {remaining_duration} seconds")
+    downloaded_videos = material.download_videos(
+        task_id=task_id,
+        search_terms=video_terms,
+        source=remote_sources,
+        video_aspect=params.video_aspect,
+        video_concat_mode=(
+            VideoConcatMode.sequential
+            if params.match_materials_to_script
+            else params.video_concat_mode
+        ),
+        audio_duration=remaining_duration,
+        max_clip_duration=params.video_clip_duration,
+        match_script_order=params.match_materials_to_script,
+    )
+    if not downloaded_videos and not local_paths:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error(
+            "failed to download videos, maybe the network is not available. if you are in China, please use a VPN."
         )
-        if not downloaded_videos:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            logger.error(
-                "failed to download videos, maybe the network is not available. if you are in China, please use a VPN."
-            )
-            return None
-        return downloaded_videos
+        return None
+    return local_paths + (downloaded_videos if downloaded_videos else [])
 
 
 def generate_final_videos(
