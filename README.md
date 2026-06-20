@@ -38,13 +38,23 @@
       <sub>感谢 <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> 对本项目的赞助。AIHubMix 深度适配 OpenAI、Claude、Gemini、DeepSeek、智谱、千问等全球顶级最新模型，一站式快速接入 GPT-5.5、deepseek-v4-flash 等 700+ 模型（含多个免费模型），提供企业级生产稳定性保障。</sub>
     </td>
   </tr>
+
   <tr>
     <td align="center" width="160">
       <a href="https://www.volcengine.com/activity/codingplan?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><img src="docs/sponsors/volcengine-logo.svg" alt="火山引擎" height="32"></a><br>
-      <a href="https://ai.volcengine.com/activity/agentplan?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>方舟 Agent Plan</strong></a>
+      <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>方舟 Agent Plan</strong></a>
     </td>
     <td align="left">
-      <sub>感谢 <a href="https://ai.volcengine.com/activity/agentplan?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">方舟 Agent Plan</a> 对本项目的赞助。模型自由，工具不限，最新支持 MiniMax-M3 与 GLM-5.1，受邀下单叠加 9.5 折！集合主流优秀国产编程模型，多生态兼容，无缝融入您的工具链，依托字节资源保障和工程能力，更大容量，更快、更稳、更丝滑！</sub>
+      <sub>感谢 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">方舟 Agent Plan</a> 对本项目的赞助。模型自由，工具不限，最新支持 MiniMax-M3 与 GLM-5.1，受邀下单叠加 9.5 折！集合主流优秀国产编程模型，多生态兼容，无缝融入您的工具链，依托字节资源保障和工程能力，更大容量，更快、更稳、更丝滑！</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><img src="docs/sponsors/ccsub-logo.png" alt="CCSub" height="36"></a><br>
+      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><strong>CCSub</strong></a>
+    </td>
+    <td align="left">
+      <sub>感谢 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> 赞助本项目！CCSub 是稳定、实惠的 AI API 中转平台，是 Claude Code 官方订阅的超强平替。一个 API Key 即可调用 Claude Opus 4.8、Sonnet 4.6、Haiku 4.5、GPT-5、Gemini 等模型，价格约为官方直连的 1/3，全球直连无需梯子。兼容 Claude Code、Codex、Cursor、Cline、Continue、Windsurf 等所有主流 AI 编程工具。前往 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> 注册即送 $5 体验额度。</sub>
     </td>
   </tr>
   <tr>
@@ -83,6 +93,7 @@
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
 - [x] 支持多种素材源:**Pexels**、**Pixabay**、**Coverr**(免费高清/4K 素材库,使用须遵守 [Coverr 许可条款](https://coverr.co/license),以 16:9 横屏为主;在 [coverr.co/developers](https://coverr.co/developers?ctx=header_navigation) 注册即可,Demo 套餐 50 次/小时)
 - [x] 支持 **OpenAI**、**AIHubMix**、**AIML API**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
+- [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
 ## 视频演示 📺
 
@@ -193,10 +204,12 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 
 ```shell
 cd MoneyPrinterTurbo
-docker-compose up
+docker compose -f docker-compose.release.yml up
 ```
 
-> 注意：最新版的docker安装时会自动以插件的形式安装docker compose，启动命令调整为docker compose up
+> 默认推荐使用 `docker-compose.release.yml`，它会直接拉取 GitHub Container Registry 上的预构建镜像：`ghcr.io/harry0703/moneyprinterturbo:latest`。
+> 如果你需要本地重新构建镜像，可以继续使用 `docker compose up`。
+> 注意：首次启动前请确保项目根目录下存在 `config.toml`，可以从 `config.example.toml` 复制一份。
 
 #### ② 访问Web界面
 

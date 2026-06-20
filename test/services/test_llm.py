@@ -14,6 +14,12 @@ from app.config import config
 from app.models.schema import VideoScriptRequest, VideoSocialMetadataRequest
 from app.services import llm
 
+RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
 
 class TestScriptPromptOptions(unittest.TestCase):
     def test_normalize_text_response_removes_think_blocks(self):
@@ -219,6 +225,57 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         self.assertIn("Error:", result)
         self.assertIn("returned empty message", result)
+
+    def test_sanitize_error_message_redacts_url_credentials_and_query_tokens(self):
+        message = (
+            "request failed for "
+            "https://myuser:mypassword@proxy.example.com/v1/chat"
+            "?api_key=secret-key&token=secret-token&safe=value"
+        )
+
+        result = llm._sanitize_error_message(message)
+
+        self.assertIn("https://***:***@proxy.example.com", result)
+        self.assertIn("api_key=***", result)
+        self.assertIn("token=***", result)
+        self.assertIn("safe=value", result)
+        self.assertNotIn("myuser", result)
+        self.assertNotIn("mypassword", result)
+        self.assertNotIn("secret-key", result)
+        self.assertNotIn("secret-token", result)
+
+    def test_openai_provider_error_redacts_embedded_base_url_credentials(self):
+        """
+        自定义 OpenAI-compatible base_url 可能包含代理网关的 user:pass。
+        SDK 抛错时常会把 URL 带回异常信息，这里验证最终返回给 WebUI/API 的
+        `Error:` 文案不会泄露这些凭据。
+        """
+        config.app["llm_provider"] = "groq"
+        config.app["groq_api_key"] = "groq-key"
+        config.app["groq_model_name"] = "llama-3.3-70b-versatile"
+        config.app["groq_base_url"] = "https://myuser:mypassword@proxy.example.com/openai/v1"
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                raise RuntimeError(
+                    "connection failed: "
+                    "https://myuser:mypassword@proxy.example.com/openai/v1"
+                    "?access_token=secret-token"
+                )
+
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=FakeCompletions())
+        )
+
+        with patch.object(llm, "OpenAI", return_value=fake_client):
+            result = llm._generate_response("test")
+
+        self.assertIn("Error:", result)
+        self.assertIn("https://***:***@proxy.example.com", result)
+        self.assertIn("access_token=***", result)
+        self.assertNotIn("myuser", result)
+        self.assertNotIn("mypassword", result)
+        self.assertNotIn("secret-token", result)
 
     def test_openai_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "openai"
@@ -900,7 +957,10 @@ FOUNDRY_BASE = "https://amanrai-test-resource.services.ai.azure.com/anthropic"
 FOUNDRY_MODEL = "azure_ai/claude-sonnet-4-6"
 
 
-@unittest.skipUnless(FOUNDRY_KEY, "ANTHROPIC_FOUNDRY_API_KEY not set")
+@unittest.skipUnless(
+    RUN_INTEGRATION_TESTS and FOUNDRY_KEY,
+    "MPT_RUN_INTEGRATION_TESTS and ANTHROPIC_FOUNDRY_API_KEY not set",
+)
 class TestLiteLLMLiveIntegration(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
