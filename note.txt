@@ -14,6 +14,16 @@ uv sync --frozen
 sh webui.sh
 
 =====
+Chạy chương trình:
 
-API Key = sk-2d573f961b754a56b0aa53d3cf2b446e
-Pexels API Key = csvBgf8x9CNQkDmXAqwQoyKWwnNzLfnOGNWlQgRXdXAaPdgPt3D0O9Pg
+.\webui.bat
+
+=========
+flow lấy code về :
+
+git fetch upstream
+git checkout main
+git stash
+git merge upstream/main
+git stash pop
+git push origin main

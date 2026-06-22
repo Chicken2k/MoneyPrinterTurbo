@@ -25,6 +25,7 @@ from app.models.schema import (
 )
 from app.services import llm, voice
 from app.services import task as tm
+from app.services import state as sm
 from app.utils import utils
 
 st.set_page_config(
@@ -1558,14 +1559,23 @@ if start_button:
             if m.url:
                 params.video_materials.append(m)
 
-    log_container = st.empty()
+    progress_container = st.empty()
+    log_expander = st.expander(tr("System Log"), expanded=False)
+    log_container = log_expander.empty()
     log_records = []
 
     def log_received(msg):
+        task = sm.state.get_task(task_id)
+        if task:
+            p = task.get("progress", 0)
+            # Ensure p is between 0 and 100
+            p = max(0, min(100, int(p)))
+            progress_container.progress(p / 100.0, text=f"Progress: {p}%")
+            
         if config.ui["hide_log"]:
             return
+        log_records.append(msg)
         with log_container:
-            log_records.append(msg)
             st.code("\n".join(log_records))
 
     logger.add(log_received)
@@ -1583,6 +1593,7 @@ if start_button:
         st.stop()
 
     video_files = result.get("videos", [])
+    progress_container.progress(1.0, text="Progress: 100% - Completed!")
     st.success(tr("Video Generation Completed"))
     try:
         if video_files:
