@@ -164,6 +164,11 @@
     "Coverr API Key deleted successfully": "Coverr API Key deleted successfully",
     "Advanced Video Settings": "Advanced Video Settings",
     "Video Encoder": "Video Encoder",
-    "Video Encoder Help": "Advanced option. libx264 is the safest default. When a hardware encoder is selected, the app falls back to libx264 if the current FFmpeg, GPU, or driver cannot use it."
+    "Video Encoder Help": "Advanced option. libx264 is the safest default. When a hardware encoder is selected, the app falls back to libx264 if the current FFmpeg, GPU, or driver cannot use it.",
+    "Vbee API Key": "Vbee API Key",
+    "Vbee App ID": "Vbee App ID",
+    "Word-level Subtitles": "Word-level Subtitles",
+    "Word-level Subtitles Help": "When enabled, subtitles will display word-by-word instead of full sentences.",
+    "System Log": "System Log"
   }
 }

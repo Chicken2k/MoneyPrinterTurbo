@@ -91,17 +91,31 @@ def search_videos_pexels(
             if duration < minimum_duration:
                 continue
             video_files = v["video_files"]
-            # loop through each url to determine the best quality
-            for video in video_files:
-                w = int(video["width"])
-                h = int(video["height"])
-                if w == video_width and h == video_height:
-                    item = MaterialInfo()
-                    item.provider = "pexels"
-                    item.url = video["link"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+            
+            # filter files matching the aspect orientation
+            matching_files = []
+            for vf in video_files:
+                w = int(vf.get("width") or 0)
+                h = int(vf.get("height") or 0)
+                if w <= 0 or h <= 0:
+                    continue
+                # check orientation matches the aspect
+                if aspect == VideoAspect.portrait and h > w:
+                    matching_files.append(vf)
+                elif aspect == VideoAspect.landscape and w > h:
+                    matching_files.append(vf)
+                elif aspect == VideoAspect.square and abs(w - h) / max(w, h) < 0.1:
+                    matching_files.append(vf)
+            
+            if matching_files:
+                # Sort matching files by resolution (w * h) descending to pick highest quality (e.g. 4K if available)
+                matching_files.sort(key=lambda x: int(x.get("width") or 0) * int(x.get("height") or 0), reverse=True)
+                best_file = matching_files[0]
+                item = MaterialInfo()
+                item.provider = "pexels"
+                item.url = best_file["link"]
+                item.duration = duration
+                video_items.append(item)
         return video_items
     except Exception as e:
         logger.error(f"search videos failed: {str(e)}")
@@ -146,18 +160,44 @@ def search_videos_pixabay(
             if duration < minimum_duration:
                 continue
             video_files = v["videos"]
-            # loop through each url to determine the best quality
-            for video_type in video_files:
-                video = video_files[video_type]
-                w = int(video["width"])
-                # h = int(video["height"])
-                if w >= video_width:
-                    item = MaterialInfo()
-                    item.provider = "pixabay"
-                    item.url = video["url"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+            
+            # Get the resolution of the video to check its orientation
+            sample_file = video_files.get("large") or video_files.get("medium") or next(iter(video_files.values()), None)
+            if not sample_file:
+                continue
+            sample_w = int(sample_file.get("width") or 0)
+            sample_h = int(sample_file.get("height") or 0)
+            if sample_w <= 0 or sample_h <= 0:
+                continue
+
+            # check orientation matches the aspect
+            is_match = False
+            if aspect == VideoAspect.portrait and sample_h > sample_w:
+                is_match = True
+            elif aspect == VideoAspect.landscape and sample_w > sample_h:
+                is_match = True
+            elif aspect == VideoAspect.square and abs(sample_w - sample_h) / max(sample_w, sample_h) < 0.1:
+                is_match = True
+            
+            if not is_match:
+                continue
+
+            # Sort files descending by resolution to pick highest quality (e.g. 4K if available)
+            matching_files = []
+            for video_type, video_data in video_files.items():
+                w = int(video_data.get("width") or 0)
+                h = int(video_data.get("height") or 0)
+                if w > 0 and h > 0:
+                    matching_files.append(video_data)
+
+            if matching_files:
+                matching_files.sort(key=lambda x: int(x.get("width") or 0) * int(x.get("height") or 0), reverse=True)
+                best_file = matching_files[0]
+                item = MaterialInfo()
+                item.provider = "pixabay"
+                item.url = best_file["url"]
+                item.duration = duration
+                video_items.append(item)
         return video_items
     except Exception as e:
         logger.error(f"search videos failed: {str(e)}")
@@ -262,17 +302,42 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     }
 
-    # if video does not exist, download it
-    with open(video_path, "wb") as f:
-        f.write(
-            requests.get(
+    # if video does not exist, download it with retry and stream support
+    import time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
                 video_url,
                 headers=headers,
                 proxies=config.proxy,
                 verify=_get_tls_verify(),
                 timeout=(60, 240),
-            ).content
-        )
+                stream=True,
+            )
+            if hasattr(response, "raise_for_status"):
+                response.raise_for_status()
+            with open(video_path, "wb") as f:
+                if hasattr(response, "iter_content"):
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1MB chunk
+                        if chunk:
+                            f.write(chunk)
+                else:
+                    content = getattr(response, "content", b"")
+                    f.write(content)
+            break  # Download succeeded, break the retry loop
+        except Exception as e:
+            if attempt == max_retries - 1:
+                if os.path.exists(video_path):
+                    try:
+                        os.remove(video_path)
+                    except Exception:
+                        pass
+                raise e
+            logger.warning(
+                f"Failed to download video (attempt {attempt + 1}/{max_retries}): {str(e)}. Retrying..."
+            )
+            time.sleep(2)
 
     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
         clip = None

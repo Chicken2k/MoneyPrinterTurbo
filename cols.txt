@@ -1,0 +1,7 @@
+['Loại sản phẩm', 'Tên Sản phẩm', 'Kịch bản mẫu']
+
+{'Loại sản phẩm': 'sách', 'Tên Sản phẩm': 'sách A', 'Kịch bản mẫu': 'kịch bản 1'}
+{'Loại sản phẩm': nan, 'Tên Sản phẩm': 'sách B', 'Kịch bản mẫu': 'kịch bản 2'}
+{'Loại sản phẩm': nan, 'Tên Sản phẩm': nan, 'Kịch bản mẫu': 'kịch bản 3'}
+{'Loại sản phẩm': nan, 'Tên Sản phẩm': nan, 'Kịch bản mẫu': 'kịch bản 4'}
+{'Loại sản phẩm': nan, 'Tên Sản phẩm': nan, 'Kịch bản mẫu': 'kịch bản 5'}

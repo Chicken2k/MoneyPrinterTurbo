@@ -80,7 +80,7 @@ class VideoParams(BaseModel):
     match_materials_to_script: bool = False
     video_count: Optional[int] = 1
 
-    video_source: Optional[str] = "pexels"
+    video_source: Optional[Union[str, List[str]]] = "pexels"
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )
@@ -90,11 +90,11 @@ class VideoParams(BaseModel):
     video_language: Optional[str] = ""  # auto detect
 
     voice_name: Optional[str] = ""
-    voice_volume: Optional[float] = 1.0
+    voice_volume: Optional[float] = 1.7
     voice_rate: Optional[float] = 1.0
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
-    bgm_volume: Optional[float] = 0.2
+    bgm_volume: Optional[float] = 0.6
 
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
@@ -103,6 +103,7 @@ class VideoParams(BaseModel):
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
     rounded_subtitle_background: bool = False
+    word_level_subtitle: bool = False
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
@@ -118,11 +119,11 @@ class SubtitleRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
-    voice_volume: Optional[float] = 1.0
+    voice_volume: Optional[float] = 1.7
     voice_rate: Optional[float] = 1.2
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
-    bgm_volume: Optional[float] = 0.2
+    bgm_volume: Optional[float] = 0.6
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
@@ -139,11 +140,11 @@ class AudioRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
-    voice_volume: Optional[float] = 1.0
+    voice_volume: Optional[float] = 1.7
     voice_rate: Optional[float] = 1.2
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
-    bgm_volume: Optional[float] = 0.2
+    bgm_volume: Optional[float] = 0.6
     video_source: Optional[str] = "local"
 
 

@@ -153,6 +153,7 @@ def save_config():
         _cfg["azure"] = azure
         _cfg["siliconflow"] = siliconflow
         _cfg["elevenlabs"] = elevenlabs
+        _cfg["vbee"] = vbee
         _cfg["ui"] = ui
         f.write(toml.dumps(_cfg))
 
@@ -164,6 +165,7 @@ proxy = _cfg.get("proxy", {})
 azure = _cfg.get("azure", {})
 siliconflow = _cfg.get("siliconflow", {})
 elevenlabs = _cfg.get("elevenlabs", {})
+vbee = _cfg.get("vbee", {})
 ui = _cfg.get(
     "ui",
     {

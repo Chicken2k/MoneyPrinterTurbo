@@ -40,6 +40,14 @@ Generate a script for a video, depending on the subject of the video.
 6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
 8. respond in the same language as the video subject.
+9. WRITE WITH HIGH EMOTION, CLEAR RHYTHM, AND NATURAL PACING. Optimize punctuation marks (. , ! ? ...) to guide AI Text-to-Speech (TTS) for expressive and professional storytelling:
+   - Keep sentences EXTREMELY SHORT, punchy, and concise (ideally under 12-15 words). Avoid long, complex, or run-on sentences. Break down complex thoughts into multiple independent short sentences.
+   - Use commas (,) frequently to split thoughts and insert brief, natural pauses.
+   - Use periods (.) for full stops, allowing the TTS to pause completely before the next idea.
+   - Use exclamation marks (!) to highlight key takeaways, strong emotions, or impactful statements. This prompts the TTS to sound passionate, excited, or emphasized.
+   - Use question marks (?) for rhetorical or engaging questions to create natural vocal pitch rises at the end.
+   - Use ellipses (...) for dramatic, reflective pauses or transitions, giving the listener a moment to absorb the message.
+10. For Vietnamese scripts, always use polite and friendly pronouns: address the audience as 'bạn' (you) and refer to yourself as 'mình' (I/me/we). Never under any circumstance use impolite or overly colloquial pronouns like 'mày' or 'tao'.
 """.strip()
 
 
@@ -620,6 +628,44 @@ def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
     return value
 
 
+def _self_correct_script(draft_script: str, language: str) -> str:
+    """
+    AI Editor Pass: Reviews the draft script and corrects it for sentence length,
+    polite pronouns, and emotional punctuation (TTS pacing).
+    """
+    if "Error:" in draft_script or not draft_script.strip():
+        return draft_script
+
+    reflection_prompt = f"""
+Bạn là một chuyên gia biên tập nội dung kịch bản video và chuyên gia luyện giọng đọc. Nhiệm vụ của bạn là rà soát, tối ưu hóa và tự sửa lại bản nháp kịch bản dưới đây để biến nó thành một kịch bản hoàn hảo cho giọng đọc AI (Text-to-Speech - TTS) tiếng Việt, giúp giọng đọc truyền cảm, có hồn, nhấn nhá rõ ràng và ngắt nghỉ tự nhiên.
+
+Bản nháp kịch bản:
+\"\"\"
+{draft_script}
+\"\"\"
+
+CÁC QUY TẮC BẮT BUỘC PHẢI THỰC HIỆN KHI BIÊN TẬP (Tuyệt đối không bỏ qua):
+1. ĐỘ DÀI CÂU (Cực kỳ quan trọng): Các câu viết ra phải CỰC KỲ NGẮN GỌN (dưới 12-15 từ mỗi câu). Hãy tách mọi câu dài, câu ghép thành các câu đơn ngắn độc lập. Câu ngắn sẽ giúp AI đọc nhấn nhá tốt hơn và không bị hụt hơi.
+2. DẤU CÂU & NGẮT NGHỈ HƠI:
+   - Dùng dấu phẩy (,) tại các quãng ngắt nhịp tự nhiên trong câu để AI dừng nghỉ ngắn.
+   - Dùng dấu chấm (.) để AI dừng nghỉ hẳn hơi trước khi sang ý mới.
+   - Dùng dấu chấm cảm (!) ở cuối các câu nhấn mạnh, câu chốt cảm xúc mạnh để AI lên tông giọng, đọc có hồn hơn.
+   - Dùng dấu ba chấm (...) ở các đoạn cần tạo khoảng lặng lắng đọng, suy ngẫm sâu sắc cho người nghe.
+   - Dùng dấu hỏi (?) cho các câu hỏi tu từ để AI tự động nhấn giọng lên tông ở cuối câu.
+3. XƯNG HÔ (Tiếng Việt): Đảm bảo xưng hô lịch sự, thân thiện bằng cách gọi người nghe là 'bạn' và xưng là 'mình'. Tuyệt đối không dùng các từ suồng sã như 'mày', 'tao'.
+4. VĂN PHONG: Giữ nguyên ý nghĩa cốt lõi của bản nháp, nhưng chỉnh sửa từ ngữ sao cho nhịp điệu đọc lên nghe xuôi tai, nhịp nhàng, có độ nhấn giọng rõ ràng, không bị dính chữ hay trôi tuột vô hồn.
+5. ĐỊNH DẠNG ĐẦU RA: CHỈ trả về duy nhất nội dung kịch bản đã được sửa đổi và hoàn thiện. Tuyệt đối không viết thêm lời mở đầu/lời kết, không giải thích lý do sửa, không thêm tiêu đề hay định dạng markdown (như dấu sao, dấu thăng). Chỉ trả ra văn bản thuần túy.
+"""
+    try:
+        logger.info("Executing AI self-correction (reflection) pass...")
+        corrected = _generate_response(prompt=reflection_prompt)
+        if corrected and "Error:" not in corrected:
+            return corrected
+    except Exception as e:
+        logger.error(f"AI self-correction pass failed: {e}. Falling back to draft.")
+    return draft_script
+
+
 def build_script_prompt(
     video_subject: str,
     language: str = "",
@@ -714,7 +760,8 @@ def generate_script(
         try:
             response = _generate_response(prompt=prompt)
             if response:
-                final_script = format_response(response)
+                draft_script = format_response(response)
+                final_script = _self_correct_script(draft_script, language)
             else:
                 logging.error("gpt returned an empty response")
 
@@ -1006,7 +1053,7 @@ Write engaging publishing metadata for a short video that will be posted on {lab
 1. Respond ONLY with a single valid minified JSON object. No markdown, no code fences, no commentary.
 2. The JSON must contain exactly these keys: "title", "caption", "hashtags".
 3. "title": a catchy hook, at most {spec['title_max']} characters.
-4. "caption": an engaging description that ends with a call to action, at most {spec['caption_max']} characters. Do not put hashtags inside the caption.
+4. "caption": a very short and concise caption (at most 150 characters), preferably a powerful quote or key highlight statement extracted directly from the video script. Do not write multiple sentences or paragraphs, and do not put hashtags inside.
 5. "hashtags": a JSON array of exactly {spec['hashtag_count']} strings. Each must start with "#", contain no spaces, and be relevant to the topic and to {label}.
 6. {language_instruction}
 

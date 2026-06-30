@@ -164,6 +164,20 @@ def get_elevenlabs_voices(api_key: str) -> list[str]:
         return []
 
 
+def get_vbee_voices() -> list[str]:
+    """
+    Get Vbee voice list. Since Vbee does not have an easy-to-use public list API,
+    we return a predefined list of high-quality Vietnamese voices.
+    """
+    voices_with_gender = [
+        ("s_sg_male_thientam_ytstable_vc", "Thiện Tâm"),
+        ("n_hanoi_male_namnhenhangamap_story_vc", "Nam Nhẹ nhàng Ấm áp"),
+        ("hn_female_ngochuyen_full_48k-fhg", "HN - Ngọc Huyền"),
+        ("hn_male_minhquan_yt-stable", "HN - Minh Quân"),
+    ]
+    return [f"vbee:{code}:{name}" for code, name in voices_with_gender]
+
+
 _AZURE_VOICES_DATA_FILE = os.path.join(
     os.path.dirname(__file__), "data", "azure_voices.json"
 )
@@ -227,6 +241,10 @@ def is_mimo_voice(voice_name: str):
 
 def is_elevenlabs_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("elevenlabs:")
+
+
+def is_vbee_voice(voice_name: str) -> bool:
+    return (voice_name or "").startswith("vbee:")
 
 
 def is_no_voice(voice_name: str | None) -> bool:
@@ -333,6 +351,7 @@ def tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    word_level_subtitle: bool = False,
 ) -> Union[SubMaker, None]:
     if is_no_voice(voice_name):
         duration_seconds = estimate_no_voice_duration(text)
@@ -344,6 +363,7 @@ def tts(
             sub_maker=sub_maker,
             text=text,
             audio_duration_seconds=duration_seconds,
+            word_level_subtitle=word_level_subtitle,
         )
 
     if is_azure_v2_voice(voice_name):
@@ -360,7 +380,8 @@ def tts(
             # 构建完整的voice参数，格式为 "model:voice"
             full_voice = f"{model}:{voice}"
             return siliconflow_tts(
-                text, model, full_voice, voice_rate, voice_file, voice_volume
+                text, model, full_voice, voice_rate, voice_file, voice_volume,
+                word_level_subtitle=word_level_subtitle
             )
         else:
             logger.error(f"Invalid siliconflow voice name format: {voice_name}")
@@ -373,7 +394,8 @@ def tts(
             # 移除性别后缀，例如 "Zephyr-Female" -> "Zephyr"
             voice_with_gender = parts[1]
             voice = voice_with_gender.split("-")[0]
-            return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
+            return gemini_tts(text, voice, voice_rate, voice_file, voice_volume,
+                              word_level_subtitle=word_level_subtitle)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
@@ -385,7 +407,8 @@ def tts(
         if len(parts) >= 2:
             voice_with_gender = parts[1]
             voice = voice_with_gender.split("-")[0]
-            return mimo_tts(text, voice, voice_rate, voice_file, voice_volume)
+            return mimo_tts(text, voice, voice_rate, voice_file, voice_volume,
+                            word_level_subtitle=word_level_subtitle)
         else:
             logger.error(f"Invalid mimo voice name format: {voice_name}")
             return None
@@ -394,11 +417,66 @@ def tts(
         parts = voice_name.split(":")
         if len(parts) >= 2:
             voice_id = parts[1]
-            return elevenlabs_tts(text, voice_id, voice_file, voice_rate, voice_volume)
+            return elevenlabs_tts(text, voice_id, voice_file, voice_rate, voice_volume,
+                                  word_level_subtitle=word_level_subtitle)
         else:
             logger.error(f"Invalid elevenlabs voice name format: {voice_name}")
             return None
+    elif is_vbee_voice(voice_name):
+        # 格式: vbee:{voice_code}:{name}
+        parts = voice_name.split(":")
+        if len(parts) >= 2:
+            voice_code = parts[1]
+            return vbee_tts(text, voice_code, voice_file, voice_rate, voice_volume,
+                            word_level_subtitle=word_level_subtitle)
+        else:
+            logger.error(f"Invalid vbee voice name format: {voice_name}")
+            return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
+
+
+def is_cjk_char(char: str) -> bool:
+    """
+    Check if a character is CJK (Chinese, Japanese, Korean)
+    """
+    return any(
+        start <= ord(char) <= end
+        for start, end in [
+            (0x4E00, 0x9FFF),
+            (0x3400, 0x4DBF),
+            (0xF900, 0xFAFF),
+        ]
+    )
+
+
+class SubtitleItemList(list):
+    """
+    Custom list subclass to carry matched sentence count along with subtitle items.
+    Maintains compatibility with tests and callers expecting a raw list.
+    """
+    def __init__(self, items, sentence_index):
+        super().__init__(items)
+        self.sentence_index = sentence_index
+
+
+def split_to_words(s: str) -> list[str]:
+    """
+    Split text into words. For languages with spaces (English, Vietnamese, etc.),
+    splits by spaces. For languages like Chinese, splits by individual characters.
+    """
+    normalized_s = (s or "").strip()
+    if not normalized_s:
+        return []
+    
+    words = normalized_s.split()
+    if not words:
+        return []
+
+    # If only one word but contains CJK characters, split it into characters
+    if len(words) == 1 and any(is_cjk_char(c) for c in normalized_s):
+        return list(normalized_s)
+
+    return words
 
 
 def convert_rate_to_percent(rate: float) -> str:
@@ -441,7 +519,10 @@ def ensure_legacy_submaker_fields(sub_maker: SubMaker) -> SubMaker:
 
 
 def populate_legacy_submaker_with_full_text(
-    sub_maker: SubMaker, text: str, audio_duration_seconds: float
+    sub_maker: SubMaker,
+    text: str,
+    audio_duration_seconds: float,
+    word_level_subtitle: bool = False,
 ) -> SubMaker:
     """
     用整段文本填充项目历史沿用的 `subs/offset` 字幕结构。
@@ -449,7 +530,7 @@ def populate_legacy_submaker_with_full_text(
     背景：
     1. edge_tts 7.x 的 `SubMaker` 不再提供旧版本里的 `create_sub()`；
     2. 项目里 Gemini、SiliconFlow 等非 edge 路径依然需要返回一个
-       带 `subs/offset` 的对象，供后续统一计算音频时长和生成字幕；
+       带 `subs/offset` 的对象，供后续统一计算音频时长 and 生成字幕；
     3. 对于拿不到逐词边界的 TTS 服务，需要至少按脚本断句切成多个片段，
        这样后续 `subtitle_provider=edge` 的聚合逻辑才能继续工作，而不是
        因为整段文本无法和脚本断句逐行匹配而回退 Whisper。
@@ -458,6 +539,7 @@ def populate_legacy_submaker_with_full_text(
         sub_maker: 需要写入兼容字段的字幕对象
         text: 原始脚本文本
         audio_duration_seconds: 音频总时长，单位秒
+        word_level_subtitle: 是否生成逐词字幕
 
     Returns:
         已填充兼容字幕数据的 SubMaker 对象
@@ -477,7 +559,10 @@ def populate_legacy_submaker_with_full_text(
     # Gemini / SiliconFlow 这类路径拿不到逐词边界时，仍然尽量沿用项目
     # 原来的“按标点断句 + 按字符数比例分配时长”的策略。这样既能让
     # create_subtitle() 匹配脚本断句，也能避免再次回退 Whisper。
-    sentences = utils.split_string_by_punctuations(normalized_text)
+    if word_level_subtitle:
+        sentences = split_to_words(normalized_text)
+    else:
+        sentences = utils.split_string_by_punctuations(normalized_text)
     if not sentences:
         sentences = [normalized_text]
 
@@ -731,6 +816,7 @@ def siliconflow_tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    word_level_subtitle: bool = False,
 ) -> Union[SubMaker, None]:
     """
     使用硅基流动的API生成语音
@@ -795,59 +881,21 @@ def siliconflow_tts(
                     # 尝试使用moviepy获取音频长度
                     from moviepy import AudioFileClip
 
-                    audio_clip = AudioFileClip(voice_file)
-                    audio_duration = audio_clip.duration
-                    audio_clip.close()
+                    with AudioFileClip(voice_file) as audio_clip:
+                        audio_duration = audio_clip.duration
 
-                    # 将音频长度转换为100纳秒单位（与edge_tts兼容）
-                    audio_duration_100ns = int(audio_duration * 10000000)
-
-                    # 使用文本分割来创建更准确的字幕
-                    # 将文本按标点符号分割成句子
-                    sentences = utils.split_string_by_punctuations(text)
-
-                    if sentences:
-                        # 计算每个句子的大致时长（按字符数比例分配）
-                        total_chars = sum(len(s) for s in sentences)
-                        char_duration = (
-                            audio_duration_100ns / total_chars if total_chars > 0 else 0
-                        )
-
-                        current_offset = 0
-                        for sentence in sentences:
-                            if not sentence.strip():
-                                continue
-
-                            # 计算当前句子的时长
-                            sentence_chars = len(sentence)
-                            sentence_duration = int(sentence_chars * char_duration)
-
-                            # 添加到SubMaker
-                            sub_maker.subs.append(sentence)
-                            sub_maker.offset.append(
-                                (current_offset, current_offset + sentence_duration)
-                            )
-
-                            # 更新偏移量
-                            current_offset += sentence_duration
-                    else:
-                        # 如果无法分割，则使用整个文本作为一个字幕
-                        sub_maker.subs = [text]
-                        sub_maker.offset = [(0, audio_duration_100ns)]
+                    sub_maker = populate_legacy_submaker_with_full_text(
+                        sub_maker=sub_maker,
+                        text=text,
+                        audio_duration_seconds=audio_duration,
+                        word_level_subtitle=word_level_subtitle,
+                    )
 
                 except Exception as e:
                     logger.warning(f"Failed to create accurate subtitles: {str(e)}")
                     # 回退到简单的字幕
                     sub_maker.subs = [text]
-                    # 使用音频文件的实际长度，如果无法获取，则假设为10秒
-                    sub_maker.offset = [
-                        (
-                            0,
-                            audio_duration_100ns
-                            if "audio_duration_100ns" in locals()
-                            else 10000000,
-                        )
-                    ]
+                    sub_maker.offset = [(0, 10000000)]
 
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
                 logger.debug(
@@ -966,6 +1014,7 @@ def gemini_tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    word_level_subtitle: bool = False,
 ) -> Union[SubMaker, None]:
     """
     使用Google Gemini TTS生成语音
@@ -1070,6 +1119,7 @@ def gemini_tts(
             sub_maker=sub_maker,
             text=text,
             audio_duration_seconds=audio_duration,
+            word_level_subtitle=word_level_subtitle,
         )
         
     except ImportError as e:
@@ -1086,6 +1136,7 @@ def mimo_tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    word_level_subtitle: bool = False,
 ) -> Union[SubMaker, None]:
     """
     使用 Xiaomi MiMo V2.5 TTS 生成语音。
@@ -1173,6 +1224,7 @@ def mimo_tts(
                 sub_maker=sub_maker,
                 text=text,
                 audio_duration_seconds=audio_duration,
+                word_level_subtitle=word_level_subtitle,
             )
         except Exception as e:
             logger.error(f"mimo tts failed: {str(e)}")
@@ -1187,6 +1239,7 @@ def elevenlabs_tts(
     voice_rate: float = 1.0,
     voice_volume: float = 1.0,
     model_id: str = "",
+    word_level_subtitle: bool = False,
 ) -> Union[SubMaker, None]:
     text = (text or "").strip()
     if not text:
@@ -1262,9 +1315,133 @@ def elevenlabs_tts(
                 sub_maker=sub_maker,
                 text=text,
                 audio_duration_seconds=audio_duration,
+                word_level_subtitle=word_level_subtitle,
             )
         except Exception as e:
             logger.error(f"elevenlabs tts failed: {str(e)}")
+
+    return None
+
+
+def vbee_tts(
+    text: str,
+    voice_code: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
+    word_level_subtitle: bool = False,
+) -> Union[SubMaker, None]:
+    """
+    Generate speech using Vbee Batch (async) TTS API, then poll for results and download.
+    """
+    text = (text or "").strip()
+    if not text:
+        logger.error("Vbee TTS text is empty")
+        return None
+
+    api_key = config.vbee.get("api_key", "")
+    app_id = config.vbee.get("app_id", "")
+    if not api_key or not app_id:
+        logger.error("Vbee api_key or app_id is not configured")
+        return None
+
+    # Map speed: Vbee accepts 0.25 to 1.9
+    speed = max(0.25, min(1.9, voice_rate))
+
+    # Output format
+    output_format = utils.parse_extension(voice_file) or "mp3"
+    if output_format not in ["mp3", "wav"]:
+        output_format = "mp3"
+
+    url = "https://api.vbee.vn/v1/tts"
+    headers = {
+        "Authorization": f"Bearer {api_key}" if api_key.startswith("Bearer ") else f"Bearer {api_key}",
+        "App-Id": app_id,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "text": text,
+        "voiceCode": voice_code,
+        "mode": "async",
+        "outputFormat": output_format,
+        "bitrate": 128,
+        "speed": speed,
+        "webhookUrl": "https://example.com/callback",
+    }
+
+    for i in range(3):
+        try:
+            logger.info(f"start vbee batch tts, voice_code: {voice_code}, try: {i + 1}")
+            ensure_file_path_exists(voice_file)
+
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code not in (200, 201):
+                logger.error(f"vbee tts initiate failed with status {response.status_code}: {response.text}")
+                continue
+
+            data = response.json()
+            request_id = data.get("requestId")
+            if not request_id:
+                logger.error("vbee response missing requestId")
+                continue
+
+            logger.info(f"vbee task created, requestId: {request_id}. Polling...")
+
+            # Polling status every 2 seconds
+            poll_url = f"https://api.vbee.vn/v1/tts/requests/{request_id}"
+            max_polls = 150  # 150 * 2s = 300s max timeout
+            audio_link = None
+            for p in range(max_polls):
+                time.sleep(2)
+                poll_resp = requests.get(poll_url, headers=headers, timeout=15)
+                if poll_resp.status_code != 200:
+                    logger.warning(f"vbee poll failed: status {poll_resp.status_code}")
+                    continue
+
+                poll_data = poll_resp.json()
+                status = poll_data.get("status")
+                logger.debug(f"vbee poll {p+1}/{max_polls}: status = {status}")
+
+                if status == "COMPLETED":
+                    audio_link = poll_data.get("audioLink")
+                    break
+                elif status in ["FAILED", "ERROR"]:
+                    err_msg = poll_data.get("error_message") or poll_data.get("error", {}).get("message", "Unknown error")
+                    logger.error(f"vbee tts task failed on server: {err_msg}")
+                    break
+                elif status == "PROCESSING":
+                    continue
+                else:
+                    logger.warning(f"unhandled vbee status: {status}")
+
+            if not audio_link:
+                logger.error("vbee polling failed or timed out")
+                continue
+
+            # Download the resulting audio file
+            logger.info(f"downloading vbee audio: {audio_link}")
+            audio_resp = requests.get(audio_link, timeout=60)
+            if audio_resp.status_code != 200:
+                logger.error(f"failed to download vbee audio from {audio_link}")
+                continue
+
+            with open(voice_file, "wb") as f:
+                f.write(audio_resp.content)
+
+            audio_clip = AudioFileClip(voice_file)
+            audio_duration = audio_clip.duration
+            audio_clip.close()
+
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            logger.success(f"vbee tts succeeded: {voice_file}")
+            return populate_legacy_submaker_with_full_text(
+                sub_maker=sub_maker,
+                text=text,
+                audio_duration_seconds=audio_duration,
+                word_level_subtitle=word_level_subtitle,
+            )
+        except Exception as e:
+            logger.error(f"vbee tts failed: {str(e)}")
 
     return None
 
@@ -1391,27 +1568,18 @@ def _write_subtitle_items(sub_items: list[str], subtitle_file: str) -> bool:
 
 
 def _build_subtitle_items_from_edge_cues(
-    sub_maker: SubMaker, script_lines: list[str]
+    sub_maker: SubMaker, script_lines: list[str], word_level_subtitle: bool = False
 ) -> list[str]:
     """
-    将 edge_tts 7.x 的细粒度 `cues` 聚合为按脚本断句的 SRT 片段。
-
-    背景：
-    edge_tts 7.x 的 `SubMaker.get_srt()` 更偏向逐词/逐短语的时间轴。
-    对英文做逐词高亮尚可，但中文短视频字幕如果直接照搬，会出现
-    “金钱 / 是 / 一种 / 社会 / 工具” 这种阅读体验很差的效果。
-
-    实现策略：
-    1. 逐个消费 cues 中的 `content`；
-    2. 累积成一段候选文本；
-    3. 当候选文本与脚本里当前目标断句匹配时，收敛为一个完整字幕段；
-    4. 使用第一条 cue 的开始时间和最后一条 cue 的结束时间，保证时间轴连续。
+    将 edge_tts 7.x 的细粒度 `cues` 聚合为按脚本断句/逐字累加 progressive 的 SRT 片段。
     """
     formatter = _build_subtitle_formatter()
     sub_items = []
     sub_index = 0
+    sentence_index = 0
     current_text = ""
     current_start_time = None
+    cues_in_sentence = []
 
     for cue in sub_maker.cues:
         cue_text = unescape(cue.content)
@@ -1420,33 +1588,68 @@ def _build_subtitle_items_from_edge_cues(
 
         current_end_time = int(cue.end.total_seconds() * 10000000)
         current_text += cue_text
+        cues_in_sentence.append(cue)
 
-        matched_text = _match_script_line(script_lines, current_text, sub_index)
+        matched_text = _match_script_line(script_lines, current_text, sentence_index)
         if not matched_text:
             continue
 
-        sub_index += 1
-        sub_items.append(
-            formatter(
-                idx=sub_index,
-                start_time=current_start_time,
-                end_time=current_end_time,
-                sub_text=matched_text,
+        # Found sentence match!
+        if word_level_subtitle:
+            words_list = []
+            for idx, c in enumerate(cues_in_sentence):
+                c_text = unescape(c.content).strip()
+                words_list.append(c_text)
+
+                has_cjk = any(any(is_cjk_char(char) for char in w) for w in words_list)
+                join_char = "" if has_cjk else " "
+                cumulative_text = join_char.join(words_list)
+
+                c_start = int(c.start.total_seconds() * 10000000)
+                if idx == 0:
+                    c_start = current_start_time
+
+                if idx < len(cues_in_sentence) - 1:
+                    c_end = int(cues_in_sentence[idx + 1].start.total_seconds() * 10000000)
+                else:
+                    c_end = current_end_time
+
+                if c_start < c_end:
+                    sub_index += 1
+                    sub_items.append(
+                        formatter(
+                            idx=sub_index,
+                            start_time=c_start,
+                            end_time=c_end,
+                            sub_text=cumulative_text.strip(),
+                        )
+                    )
+        else:
+            sub_index += 1
+            sub_items.append(
+                formatter(
+                    idx=sub_index,
+                    start_time=current_start_time,
+                    end_time=current_end_time,
+                    sub_text=matched_text,
+                )
             )
-        )
+
+        sentence_index += 1
         current_text = ""
         current_start_time = None
+        cues_in_sentence = []
 
     if current_text.strip():
         logger.warning(
             f"edge cues still have unmatched text after aggregation: {current_text}"
         )
 
-    return sub_items
+    return SubtitleItemList(sub_items, sentence_index)
 
 
 def _build_subtitle_items_from_legacy_submaker(
-    sub_maker: SubMaker, script_lines: list[str]
+    sub_maker: SubMaker, script_lines: list[str], word_level_subtitle: bool = False
 ) -> list[str]:
     """
     将项目原有 `subs/offset` 结构聚合为按脚本断句的 SRT 片段。
@@ -1458,7 +1661,9 @@ def _build_subtitle_items_from_legacy_submaker(
     start_time = -1.0
     sub_items = []
     sub_index = 0
+    sentence_index = 0
     sub_line = ""
+    items_in_sentence = []
 
     legacy_offsets = getattr(sub_maker, "offset", [])
     legacy_subs = getattr(sub_maker, "subs", [])
@@ -1468,31 +1673,71 @@ def _build_subtitle_items_from_legacy_submaker(
             start_time = current_start_time
 
         sub_line += unescape(sub)
-        matched_text = _match_script_line(script_lines, sub_line, sub_index)
+        items_in_sentence.append((offset, sub))
+
+        matched_text = _match_script_line(script_lines, sub_line, sentence_index)
         if not matched_text:
             continue
 
-        sub_index += 1
-        sub_items.append(
-            formatter(
-                idx=sub_index,
-                start_time=start_time,
-                end_time=current_end_time,
-                sub_text=matched_text,
+        # Found sentence match!
+        if word_level_subtitle:
+            words_list = []
+            for idx, (off, text_val) in enumerate(items_in_sentence):
+                words_list.append(unescape(text_val).strip())
+
+                has_cjk = any(any(is_cjk_char(char) for char in w) for w in words_list)
+                join_char = "" if has_cjk else " "
+                cumulative_text = join_char.join(words_list)
+
+                c_start = off[0]
+                if idx == 0:
+                    c_start = start_time
+
+                if idx < len(items_in_sentence) - 1:
+                    c_end = items_in_sentence[idx + 1][0][0]
+                else:
+                    c_end = current_end_time
+
+                if c_start < c_end:
+                    sub_index += 1
+                    sub_items.append(
+                        formatter(
+                            idx=sub_index,
+                            start_time=c_start,
+                            end_time=c_end,
+                            sub_text=cumulative_text.strip(),
+                        )
+                    )
+        else:
+            sub_index += 1
+            sub_items.append(
+                formatter(
+                    idx=sub_index,
+                    start_time=start_time,
+                    end_time=current_end_time,
+                    sub_text=matched_text,
+                )
             )
-        )
+
+        sentence_index += 1
         start_time = -1.0
         sub_line = ""
+        items_in_sentence = []
 
     if sub_line.strip():
         logger.warning(
             f"legacy subtitle items still have unmatched text after aggregation: {sub_line}"
         )
 
-    return sub_items
+    return SubtitleItemList(sub_items, sentence_index)
 
 
-def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
+def create_subtitle(
+    sub_maker: SubMaker,
+    text: str,
+    subtitle_file: str,
+    word_level_subtitle: bool = False,
+):
     """
     优化字幕文件
     1. 将字幕文件按照标点符号分割成多行
@@ -1503,15 +1748,18 @@ def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
     script_lines = utils.split_string_by_punctuations(text)
     try:
         if hasattr(sub_maker, "cues") and sub_maker.cues:
-            sub_items = _build_subtitle_items_from_edge_cues(sub_maker, script_lines)
+            sub_items = _build_subtitle_items_from_edge_cues(
+                sub_maker, script_lines, word_level_subtitle=word_level_subtitle
+            )
         else:
             sub_items = _build_subtitle_items_from_legacy_submaker(
-                sub_maker, script_lines
+                sub_maker, script_lines, word_level_subtitle=word_level_subtitle
             )
 
-        if len(sub_items) != len(script_lines):
+        sentence_index = getattr(sub_items, "sentence_index", len(sub_items))
+        if sentence_index != len(script_lines):
             logger.warning(
-                f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}"
+                f"failed, sentence_index: {sentence_index}, script_lines len: {len(script_lines)}"
             )
             return
 

@@ -51,6 +51,7 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="语气轻松",
             custom_system_prompt="Only write short narration.",
+            script_word_count=0,
         )
 
     def test_generate_terms_uses_script_order_mode_when_enabled(self):

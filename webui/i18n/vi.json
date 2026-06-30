@@ -162,6 +162,11 @@
     "Coverr API Key deleted successfully": "Xóa API Key Coverr thành công",
     "Advanced Video Settings": "Cài Đặt Video Nâng Cao",
     "Video Encoder": "Bộ Mã Hóa Video",
-    "Video Encoder Help": "Tùy chọn nâng cao. libx264 là lựa chọn mặc định an toàn nhất. Khi chọn bộ mã hóa phần cứng, ứng dụng sẽ tự chuyển về libx264 nếu FFmpeg, GPU hoặc driver hiện tại không hỗ trợ."
+    "Video Encoder Help": "Tùy chọn nâng cao. libx264 là lựa chọn mặc định an toàn nhất. Khi chọn bộ mã hóa phần cứng, ứng dụng sẽ tự chuyển về libx264 nếu FFmpeg, GPU hoặc driver hiện tại không hỗ trợ.",
+    "Vbee API Key": "Khóa API Vbee",
+    "Vbee App ID": "App ID Vbee",
+    "Word-level Subtitles": "Chạy phụ đề theo từng chữ",
+    "Word-level Subtitles Help": "Khi được bật, phụ đề sẽ hiển thị từng từ/chữ thay vì hiển thị cả câu dài.",
+    "System Log": "Nhật ký hệ thống"
   }
 }

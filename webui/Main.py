@@ -1,10 +1,12 @@
 import os
 import sys
 import webbrowser
+import random
 from uuid import UUID, uuid4
 
 import requests
 import streamlit as st
+import pandas as pd
 from loguru import logger
 
 # Add the root directory of the project to the system path to allow importing modules from the project
@@ -60,12 +62,42 @@ config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
 system_locale = utils.get_system_locale()
 
 
+VIBE_COMBOS = {
+    "--- Chọn Vibe nhanh / Quick Vibe Select ---": "",
+    "Ngẫu nhiên / Random Vibe": "random",
+    "Mặc định / Default": "nature,background,landscape,sunset,beach,mountains,books, open book, reading book, bookshelf",
+    "Vibe 1: Thiên nhiên (Cinematic Nature)": "Cinematic nature, Peaceful landscape, Healing nature, Spring vibe",
+    "Vibe 2: Chữa lành (Healing Journey)": "Wanderlust cinematic, Healing journey, Peaceful nature slow motion",
+    "Vibe 3: Mưa tâm trạng (Moody Rain)": "Moody rain cinematic, Peaceful rainy day, Healing nature rain, Slow motion rain walking",
+    "Vibe 4: Phố đêm (City Night Rain)": "City night rain, Moody urban night, Cars driving in rain night, Street lights reflection wet road",
+    "Vibe 5: Hoàng hôn (Venice Sunset)": "Venice canal sunset, Boats on river golden hour, European city water sunset, Yellow bus park",
+    "Combo 1: Chữa lành & Bình yên": "Slow living morning, Sunlight through leaves aesthetic, Peaceful nature water ripples, Cozy cabin in the woods, Person reading book nature",
+    "Combo 2: Trầm buồn & Suy ngẫm": "Dark moody rain city, Cinematic lonely walk night, raindrops on window street lights, Looking out train window sad, Foggy pine forest",
+    "Combo 3: Động lực & Kỷ luật": "Running at sunrise cinematic, Studying late night aesthetic, Walking up stairs silhouette, Working out dark gym, Standing top of mountain success",
+    "Combo 4: Tự do & Xê dịch": "Drone shot road trip mountains, Airplane wing clouds sunset, Running in open field freedom, Standing on cliff ocean waves, Cinematic landscape golden hour",
+    "Combo 5: Hoài niệm & Thơ mộng": "Vintage film look aesthetic, Old vinyl record playing, Sunset city warm tones, Holding hands walking away"
+}
+
+if "generating_video" not in st.session_state:
+    st.session_state["generating_video"] = False
+if "run_generation" not in st.session_state:
+    st.session_state["run_generation"] = False
+if "run_excel_generation" not in st.session_state:
+    st.session_state["run_excel_generation"] = False
 if "video_subject" not in st.session_state:
     st.session_state["video_subject"] = ""
 if "video_script" not in st.session_state:
     st.session_state["video_script"] = ""
+if "vibe_combo_selectbox" not in st.session_state:
+    st.session_state["vibe_combo_selectbox"] = "Ngẫu nhiên / Random Vibe"
+if "excel_vibe_combo_selectbox" not in st.session_state:
+    st.session_state["excel_vibe_combo_selectbox"] = "Ngẫu nhiên / Random Vibe"
 if "video_terms" not in st.session_state:
-    st.session_state["video_terms"] = ""
+    valid_keys = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]]
+    selected_key = random.choice(valid_keys)
+    st.session_state["video_terms"] = VIBE_COMBOS[selected_key]
+if "excel_video_keywords_input" not in st.session_state:
+    st.session_state["excel_video_keywords_input"] = "Ngẫu nhiên / Random Vibe"
 if "video_script_prompt" not in st.session_state:
     st.session_state["video_script_prompt"] = ""
 if "custom_system_prompt" not in st.session_state:
@@ -110,6 +142,95 @@ with lang_col:
         code = selected_language.split(" - ")[0].strip()
         st.session_state["ui_language"] = code
         config.ui["language"] = code
+
+is_generating = st.session_state.get("generating_video", False)
+
+if is_generating:
+    st.markdown(
+        """
+        <style>
+        /* Full-screen semi-transparent blurred overlay mask */
+        .overlay-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(6px);
+            z-index: 99990;
+            pointer-events: all;
+        }
+
+        /* Float the warning banner on top of the mask */
+        div.element-container:has(.stop-msg-container) + div.element-container {
+            position: fixed;
+            top: 25% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 999999 !important;
+            width: 80% !important;
+            max-width: 800px !important;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15) !important;
+            border-radius: 12px !important;
+        }
+
+        /* Float the stop button on top of the mask */
+        div.element-container:has(.stop-btn-container) + div.element-container button {
+            position: fixed;
+            top: 38% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 999999 !important;
+            background-color: #ff4b4b !important;
+            color: white !important;
+            font-size: 1.8rem !important;
+            padding: 1.2rem 3rem !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 30px rgba(255, 75, 75, 0.5) !important;
+            border: 3px solid #ff4b4b !important;
+            font-weight: bold !important;
+            cursor: pointer !important;
+            width: auto !important;
+        }
+
+        /* Float the progress bar container on top of the mask */
+        div.element-container:has(.progress-marker) + div.element-container {
+            position: fixed;
+            top: 52% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 999999 !important;
+            width: 80% !important;
+            max-width: 800px !important;
+            background-color: white !important;
+            padding: 20px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1) !important;
+            border: 1px solid #e0e0e0 !important;
+        }
+        div.element-container:has(.progress-marker) + div.element-container * {
+            color: #111111 !important;
+        }
+        </style>
+        <div class="overlay-mask"></div>
+        <div class="stop-msg-container"></div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.error("⚠️ **HỆ THỐNG ĐANG TẠO VIDEO...** Các cài đặt đã được tạm thời khóa lại để tránh xung đột dữ liệu. Vui lòng không tắt trình duyệt hoặc click chọn tùy chọn khác.")
+    
+    st.markdown('<div class="stop-btn-container"></div>', unsafe_allow_html=True)
+    if st.button("🛑 DỪNG TẠO VIDEO (STOP GENERATION)", type="primary", use_container_width=True, key="stop_generation_btn"):
+        st.session_state["generating_video"] = False
+        st.session_state["run_generation"] = False
+        st.session_state["run_excel_generation"] = False
+        st.warning("Đang dừng tạo video... Tiến trình sẽ dừng hẳn sau khi hoàn tất bước xử lý hiện tại (ví dụ: tải xong video hoặc render xong clip hiện tại). Vui lòng đợi.")
+        st.rerun()
+
+    st.markdown('<div class="progress-marker"></div>', unsafe_allow_html=True)
+    st.session_state["global_progress_container"] = st.empty()
+    st.write("---")
 
 support_locales = [
     "zh-CN",
@@ -709,123 +830,394 @@ params.match_materials_to_script = bool(
 uploaded_files = []
 uploaded_audio_file = None
 
+def on_tab_change():
+    pass
+
 with left_panel:
-    with st.container(border=True):
-        st.write(tr("Video Script Settings"))
-        params.video_subject = st.text_input(
-            tr("Video Subject"),
-            key="video_subject",
-        ).strip()
-
-        video_languages = [
-            (tr("Auto Detect"), ""),
-        ]
-        for code in support_locales:
-            video_languages.append((code, code))
-
-        selected_index = st.selectbox(
-            tr("Script Language"),
-            index=0,
-            options=range(
-                len(video_languages)
-            ),  # Use the index as the internal option value
-            format_func=lambda x: video_languages[x][
-                0
-            ],  # The label is displayed to the user
-        )
-        params.video_language = video_languages[selected_index][1]
-
-        with st.expander(tr("Advanced Script Settings"), expanded=False):
-            params.paragraph_number = st.number_input(
-                tr("Script Paragraph Number"),
-                min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
-                max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
-                value=st.session_state.get("paragraph_number_input", 1),
-                step=1,
-                key="paragraph_number_input",
-            )
-            params.script_word_count = st.number_input(
-                "Target Word Count (Optional) / Số chữ",
-                min_value=0,
-                max_value=10000,
-                value=st.session_state.get("script_word_count_input", 0),
-                step=50,
-                key="script_word_count_input",
-                help="Nhập số lượng chữ (từ) mong muốn cho kịch bản. Để 0 nếu muốn AI tự quyết định."
-            )
-            params.video_script_prompt = st.text_area(
-                tr("Custom Script Requirements"),
-                height=100,
-                max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
-                placeholder=tr("Custom Script Requirements Placeholder"),
-                key="video_script_prompt",
+    tab_script_manual, tab_script_excel = st.tabs([tr("Video Script Settings"), "📊 Excel Auto Mode"], key="active_tab", on_change=on_tab_change)
+    
+    with tab_script_manual:
+        with st.container(border=True):
+            st.write(tr("Video Script Settings"))
+            params.video_subject = st.text_input(
+                tr("Video Subject"),
+                key="video_subject",
             ).strip()
 
-            use_custom_system_prompt = st.checkbox(
-                tr("Use Custom System Prompt"),
-                help=tr("Use Custom System Prompt Help"),
-                key="use_custom_system_prompt",
+            video_languages = [
+                (tr("Auto Detect"), ""),
+            ]
+            for code in support_locales:
+                video_languages.append((code, code))
+
+            selected_index = st.selectbox(
+                tr("Script Language"),
+                index=0,
+                options=range(
+                    len(video_languages)
+                ),  # Use the index as the internal option value
+                format_func=lambda x: video_languages[x][
+                    0
+                ],  # The label is displayed to the user
+            )
+            params.video_language = video_languages[selected_index][1]
+
+            with st.expander(tr("Advanced Script Settings"), expanded=False):
+                params.paragraph_number = st.number_input(
+                    tr("Script Paragraph Number"),
+                    min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
+                    max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
+                    value=st.session_state.get("paragraph_number_input", 1),
+                    step=1,
+                    key="paragraph_number_input",
+                )
+                params.script_word_count = st.number_input(
+                    "Target Word Count (Optional) / Số chữ",
+                    min_value=0,
+                    max_value=10000,
+                    value=st.session_state.get("script_word_count_input", 0),
+                    step=50,
+                    key="script_word_count_input",
+                    help="Nhập số lượng chữ (từ) mong muốn cho kịch bản. Để 0 nếu muốn AI tự quyết định."
+                )
+                params.video_script_prompt = st.text_area(
+                    tr("Custom Script Requirements"),
+                    height=100,
+                    max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
+                    placeholder=tr("Custom Script Requirements Placeholder"),
+                    key="video_script_prompt",
+                ).strip()
+
+                use_custom_system_prompt = st.checkbox(
+                    tr("Use Custom System Prompt"),
+                    help=tr("Use Custom System Prompt Help"),
+                    key="use_custom_system_prompt",
+                )
+
+                if use_custom_system_prompt:
+                    custom_system_prompt = st.text_area(
+                        tr("Custom System Prompt"),
+                        height=240,
+                        max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
+                        key="custom_system_prompt",
+                    ).strip()
+                    params.custom_system_prompt = custom_system_prompt
+                else:
+                    params.custom_system_prompt = ""
+
+            if st.button(
+                tr("Generate Video Script and Keywords"), key="auto_generate_script"
+            ):
+                with st.spinner(tr("Generating Video Script and Keywords")):
+                    script = llm.generate_script(
+                        video_subject=params.video_subject,
+                        language=params.video_language,
+                        paragraph_number=params.paragraph_number,
+                        video_script_prompt=params.video_script_prompt,
+                        custom_system_prompt=params.custom_system_prompt,
+                        script_word_count=params.script_word_count,
+                    )
+                    terms = llm.generate_terms(
+                        params.video_subject,
+                        script,
+                        amount=8 if params.match_materials_to_script else 5,
+                        match_script_order=params.match_materials_to_script,
+                    )
+                    if "Error: " in script:
+                        st.error(tr(script))
+                    elif "Error: " in terms:
+                        st.error(tr(terms))
+                    else:
+                        st.session_state["video_script"] = script
+                        st.session_state["video_terms"] = ", ".join(terms)
+            params.video_script = st.text_area(
+                tr("Video Script"), value=st.session_state["video_script"], height=280
+            )
+            if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
+                if not params.video_script:
+                    st.error(tr("Please Enter the Video Subject"))
+                    st.stop()
+
+                with st.spinner(tr("Generating Video Keywords")):
+                    terms = llm.generate_terms(
+                        params.video_subject,
+                        params.video_script,
+                        amount=8 if params.match_materials_to_script else 5,
+                        match_script_order=params.match_materials_to_script,
+                    )
+                    if "Error: " in terms:
+                        st.error(tr(terms))
+                    else:
+                        st.session_state["video_terms"] = ", ".join(terms)
+
+            combos = VIBE_COMBOS
+            
+            def on_combo_change():
+                val = st.session_state.get("vibe_combo_selectbox", "")
+                if val and val != "--- Chọn Vibe nhanh / Quick Vibe Select ---":
+                    if val == "Ngẫu nhiên / Random Vibe":
+                        valid_keys = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]]
+                        selected_key = random.choice(valid_keys)
+                        st.session_state["video_terms"] = VIBE_COMBOS[selected_key]
+                    else:
+                        st.session_state["video_terms"] = combos[val]
+                    st.session_state["vibe_combo_selectbox"] = "--- Chọn Vibe nhanh / Quick Vibe Select ---"
+
+            st.selectbox(
+                "Chọn bộ từ khóa mẫu (Combo Vibes)",
+                options=list(combos.keys()),
+                key="vibe_combo_selectbox",
+                on_change=on_combo_change
             )
 
-            if use_custom_system_prompt:
-                custom_system_prompt = st.text_area(
-                    tr("Custom System Prompt"),
-                    height=240,
-                    max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
-                    key="custom_system_prompt",
-                ).strip()
-                params.custom_system_prompt = custom_system_prompt
-            else:
-                params.custom_system_prompt = ""
+            params.video_terms = st.text_area(
+                tr("Video Keywords"), key="video_terms"
+            )
 
-        if st.button(
-            tr("Generate Video Script and Keywords"), key="auto_generate_script"
-        ):
-            with st.spinner(tr("Generating Video Script and Keywords")):
-                script = llm.generate_script(
-                    video_subject=params.video_subject,
-                    language=params.video_language,
-                    paragraph_number=params.paragraph_number,
-                    video_script_prompt=params.video_script_prompt,
-                    custom_system_prompt=params.custom_system_prompt,
-                    script_word_count=params.script_word_count,
-                )
-                terms = llm.generate_terms(
-                    params.video_subject,
-                    script,
-                    amount=8 if params.match_materials_to_script else 5,
-                    match_script_order=params.match_materials_to_script,
-                )
-                if "Error: " in script:
-                    st.error(tr(script))
-                elif "Error: " in terms:
-                    st.error(tr(terms))
-                else:
-                    st.session_state["video_script"] = script
-                    st.session_state["video_terms"] = ", ".join(terms)
-        params.video_script = st.text_area(
-            tr("Video Script"), value=st.session_state["video_script"], height=280
-        )
-        if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
-            if not params.video_script:
-                st.error(tr("Please Enter the Video Subject"))
-                st.stop()
+    with tab_script_excel:
+        with st.container(border=True):
+            st.write("**Chạy tự động từ Excel (Excel Auto Mode)**")
+            
+            excel_content_modes = [
+                ("Chế độ 1: Bán hàng / Review sản phẩm (Dùng cả kịch bản mẫu & sản phẩm)", "sales_review"),
+                ("Chế độ 2: Viết lại theo Kịch bản mẫu (Chỉ dùng kịch bản mẫu, bỏ qua sản phẩm)", "rewrite_template"),
+                ("Chế độ 3: Tự do sáng tạo (Chỉ dùng sản phẩm/chủ đề, không cần mẫu)", "free_creation"),
+            ]
+            excel_content_mode = st.selectbox(
+                "Chế độ tạo nội dung",
+                options=[mode[0] for mode in excel_content_modes],
+                index=0,
+                key="excel_content_mode_select",
+                help="Chọn cách AI sử dụng thông tin từ file Excel để tạo kịch bản.",
+                disabled=is_generating
+            )
+            
+            selected_mode_key = "sales_review"
+            for mode_name, mode_key in excel_content_modes:
+                if mode_name == excel_content_mode:
+                    selected_mode_key = mode_key
+                    break
+            
+            # Trạng thái các chế độ tạo nội dung
+            is_mode_rewrite = (selected_mode_key == "rewrite_template")
+            is_mode_free = (selected_mode_key == "free_creation")
+            is_mode_sales = (selected_mode_key == "sales_review")
 
-            with st.spinner(tr("Generating Video Keywords")):
-                terms = llm.generate_terms(
-                    params.video_subject,
-                    params.video_script,
-                    amount=8 if params.match_materials_to_script else 5,
-                    match_script_order=params.match_materials_to_script,
-                )
-                if "Error: " in terms:
-                    st.error(tr(terms))
-                else:
-                    st.session_state["video_terms"] = ", ".join(terms)
+            # File Uploader luôn hiển thị, bị vô hiệu hóa ở Chế độ 2
+            excel_file = st.file_uploader(
+                "Tải lên file Excel mẫu (.xlsx, .xls)",
+                type=["xlsx", "xls"],
+                key="excel_auto_file",
+                help="File Excel cần chứa các cột: Loại sản phẩm, Tên sản phẩm, Kịch bản mẫu",
+                disabled=is_mode_rewrite or is_generating
+            )
+                    
+            if is_mode_sales:
+                st.info("💡 **Bán hàng / Review**: AI sẽ kết hợp Tên sản phẩm, Ngách và Kịch bản mẫu để tạo video bán hàng.")
+            elif is_mode_rewrite:
+                st.info("💡 **Viết lại theo mẫu**: AI sẽ viết câu chuyện/nội dung mới bám sát cấu trúc & phong cách của Kịch bản mẫu.")
+            elif is_mode_free:
+                st.info("💡 **Tự do sáng tạo**: AI sẽ tự viết kịch bản hoàn toàn mới dựa trên Tên sản phẩm/Chủ đề.")
 
-        params.video_terms = st.text_area(
-            tr("Video Keywords"), value=st.session_state["video_terms"]
-        )
+            if is_mode_rewrite:
+                st.write("---")
+                st.markdown("##### ⚙️ Cấu hình Viết lại theo mẫu (Chế độ 2)")
+                excel_rewrite_niche = st.radio(
+                    "Chọn ngách nội dung (Niche)",
+                    options=[
+                        "Ngách 1: Động lực & Phát triển bản thân (Motivation / Self-help)",
+                        "Ngách 2: Tài chính & Kiếm tiền (Finance / Wealth)",
+                        "Ngách 3: Thực phẩm chức năng & Sức khỏe & Làm đẹp (Health & Wellness)",
+                        "Ngách 4: Đồ Decor, Tâm linh & Phong thủy, xem bói (Decor / Feng Shui)",
+                        "Ngách 5: Dụng cụ tập thể dục tại nhà (Home Fitness)"
+                    ],
+                    index=0,
+                    key="excel_rewrite_niche_radio",
+                    help="Chọn ngách nội dung để AI áp dụng công thức viết kịch bản phù hợp.",
+                )
+                excel_rewrite_formula = st.radio(
+                    "Chọn công thức viết lại kịch bản",
+                    options=["Ngẫu nhiên", "Công thức 1 (Trích dẫn & Chữa lành)", "Công thức 2 (Trực diện & Thức tỉnh)"],
+                    index=0,
+                    key="excel_rewrite_formula_radio",
+                    help="Chọn công thức cấu trúc kịch bản để AI áp dụng khi viết lại.",
+                )
+                excel_rewrite_genre = st.selectbox(
+                    "Chọn thể loại kịch bản",
+                    options=["Ngẫu nhiên", "Chữa lành", "Truyền động lực", "Thức tỉnh / Triết lý", "Bài học cuộc sống", "Tình yêu", "Sự nghiệp & Phát triển bản thân"],
+                    index=0,
+                    key="excel_rewrite_genre_select",
+                    help="AI sẽ viết kịch bản hướng theo thể loại/chủ đề này.",
+                )
+
+            if is_mode_free:
+                st.write("---")
+                st.markdown("##### ⚙️ Cấu hình Tự do sáng tạo (Chế độ 3)")
+                excel_custom_prompt = st.text_area(
+                    "Prompt gợi ý kịch bản (Tùy chọn)",
+                    value="",
+                    placeholder="Ví dụ: Viết một câu chuyện vui vẻ, hài hước và kết thúc đầy cảm xúc...",
+                    key="excel_custom_prompt_input",
+                    help="Nhập hướng dẫn cụ thể/prompt gợi ý cho AI để tạo nội dung theo ý muốn.",
+                )
+
+            list_niches = []
+            list_products = []
+            list_scripts = []
+            df_products = None
+            
+            if selected_mode_key == "rewrite_template":
+                excel_rewrite_formula_choice = st.session_state.get("excel_rewrite_formula_radio", "Công thức 1")
+                excel_rewrite_genre_choice = st.session_state.get("excel_rewrite_genre_select", "Ngẫu nhiên")
+                st.success(f"✨ Sẵn sàng tạo kịch bản theo {excel_rewrite_formula_choice} - Thể loại: {excel_rewrite_genre_choice}!")
+            
+            elif excel_file:
+                try:
+                    df = pd.read_excel(excel_file)
+                    df.columns = [c.strip() for c in df.columns]
+                    
+                    col_niche = None
+                    col_product = None
+                    col_script = None
+                    
+                    for col in df.columns:
+                        col_lower = col.lower()
+                        if "loại sản phẩm" in col_lower or "niche" in col_lower or "chủ đề" in col_lower:
+                            col_niche = col
+                        elif "tên sản phẩm" in col_lower or "product" in col_lower or "sản phẩm" in col_lower:
+                            col_product = col
+                        elif "kịch bản" in col_lower or "script" in col_lower or "văn mẫu" in col_lower:
+                            col_script = col
+                            
+                    # Fallback smart logic
+                    if not col_niche and not col_product and not col_script:
+                        if len(df.columns) > 0:
+                            col_niche = df.columns[0]
+                        if len(df.columns) > 1:
+                            col_product = df.columns[1]
+                        if len(df.columns) > 2:
+                            col_script = df.columns[2]
+                    else:
+                        unused_cols = [c for c in df.columns if c not in [col_niche, col_product, col_script]]
+                        if not col_niche and len(unused_cols) > 0:
+                            col_niche = unused_cols.pop(0)
+                        if not col_product and len(unused_cols) > 0:
+                            col_product = unused_cols.pop(0)
+                        if not col_script and len(unused_cols) > 0:
+                            col_script = unused_cols.pop(0)
+                        
+                    if col_niche:
+                        df[col_niche] = df[col_niche].ffill()
+                        
+                    if col_product:
+                        df_products = df[df[col_product].notna()]
+                        list_products = df_products[col_product].astype(str).str.strip().tolist()
+                    elif col_niche:
+                        df_products = df[df[col_niche].notna()]
+                        list_products = df_products[col_niche].astype(str).str.strip().tolist()
+                        
+                    if col_niche and df_products is not None:
+                        list_niches = df_products[col_niche].astype(str).str.strip().tolist()
+                    else:
+                        list_niches = [""] * len(list_products)
+                        
+                    if col_script:
+                        list_scripts = df[col_script].dropna().astype(str).str.strip().tolist()
+                        
+                    msg_info = []
+                    if list_products:
+                        msg_info.append(f"{len(list_products)} dòng chủ đề/sản phẩm")
+                    if list_scripts:
+                        msg_info.append(f"{len(list_scripts)} kịch bản mẫu")
+                    
+                    st.success(f"Đã đọc file Excel! Phát hiện: {', '.join(msg_info)}.")
+                    with st.expander("Xem trước dữ liệu Excel"):
+                        st.dataframe(df.head(10))
+                except Exception as e:
+                    st.error(f"Lỗi khi đọc file Excel: {e}")
+            
+            # Set default count of videos to generate based on mode
+            default_count = 3
+            if selected_mode_key == "rewrite_template" and list_scripts:
+                default_count = min(len(list_scripts), 5)
+            elif list_products:
+                default_count = min(len(list_products), 5)
+                
+            def on_excel_combo_change():
+                val = st.session_state.get("excel_vibe_combo_selectbox", "")
+                if val and val != "--- Chọn Vibe nhanh / Quick Vibe Select ---":
+                    if val == "Ngẫu nhiên / Random Vibe":
+                        st.session_state["excel_video_keywords_input"] = "Ngẫu nhiên / Random Vibe"
+                    else:
+                        st.session_state["excel_video_keywords_input"] = VIBE_COMBOS[val]
+                    st.session_state["excel_vibe_combo_selectbox"] = "--- Chọn Vibe nhanh / Quick Vibe Select ---"
+
+            st.selectbox(
+                "Chọn bộ từ khóa mẫu (Combo Vibes) cho Excel",
+                options=list(VIBE_COMBOS.keys()),
+                key="excel_vibe_combo_selectbox",
+                on_change=on_excel_combo_change
+            )
+
+            excel_video_keywords = st.text_input(
+                "Video Keywords (Từ khóa tìm kiếm video - Tùy chọn)",
+                placeholder="Ví dụ: healing, nature, calm...",
+                key="excel_video_keywords_input",
+                help="Các từ khóa ngăn cách bởi dấu phẩy. Nếu nhập, AI sẽ ưu tiên lấy giá trị này để tìm video mà không cần tự phân tích từ kịch bản."
+            )
+            
+            num_excel_videos = st.number_input(
+                "Số lượng video cần tạo",
+                min_value=1,
+                max_value=100,
+                value=default_count,
+                step=1,
+                key="num_excel_videos_input"
+            )
+
+            with st.expander(tr("Advanced Script Settings"), expanded=False):
+                excel_paragraph_number = st.number_input(
+                    tr("Script Paragraph Number"),
+                    min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
+                    max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
+                    value=st.session_state.get("excel_paragraph_number_input", params.paragraph_number),
+                    step=1,
+                    key="excel_paragraph_number_input",
+                )
+                excel_script_word_count = st.number_input(
+                    "Target Word Count (Optional) / Số chữ",
+                    min_value=0,
+                    max_value=10000,
+                    value=st.session_state.get("excel_script_word_count_input", params.script_word_count),
+                    step=50,
+                    key="excel_script_word_count_input",
+                    help="Nhập số lượng chữ (từ) mong muốn cho kịch bản. Để 0 nếu muốn AI tự quyết định."
+                )
+                
+                excel_use_custom_system_prompt = st.checkbox(
+                    tr("Use Custom System Prompt"),
+                    help=tr("Use Custom System Prompt Help"),
+                    key="excel_use_custom_system_prompt",
+                )
+                
+                if excel_use_custom_system_prompt:
+                    excel_custom_system_prompt = st.text_area(
+                        tr("Custom System Prompt"),
+                        value=st.session_state.get("excel_custom_system_prompt", params.custom_system_prompt or llm.DEFAULT_SCRIPT_SYSTEM_PROMPT),
+                        height=240,
+                        max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
+                        key="excel_custom_system_prompt",
+                    ).strip()
+            
+            start_excel_button = st.button(
+                "🚀 Bắt đầu tạo tự động từ Excel",
+                use_container_width=True,
+                type="primary",
+                key="start_excel_button",
+                disabled=is_generating
+            )
+            
+            excel_run_container = st.container()
 
 with middle_panel:
     with st.container(border=True):
@@ -877,6 +1269,7 @@ with middle_panel:
                 tr("Upload Local Files"),
                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
+                key="uploaded_files_uploader",
             )
 
         local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
@@ -997,6 +1390,7 @@ with middle_panel:
             ("gemini-tts", "Google Gemini TTS"),
             ("mimo-tts", "Xiaomi MiMo TTS"),
             ("elevenlabs", "ElevenLabs TTS"),
+            ("vbee", "Vbee TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -1049,6 +1443,8 @@ with middle_panel:
                     saved_elevenlabs_api_key
                 )
             filtered_voices = st.session_state[cache_key]
+        elif selected_tts_server == "vbee":
+            filtered_voices = voice.get_vbee_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -1069,6 +1465,9 @@ with middle_panel:
         else:
             def _friendly(v):
                 if voice.is_elevenlabs_voice(v):
+                    parts = v.split(":", 2)
+                    return parts[2] if len(parts) >= 3 else v
+                elif voice.is_vbee_voice(v):
                     parts = v.split(":", 2)
                     return parts[2] if len(parts) >= 3 else v
                 return (
@@ -1141,6 +1540,8 @@ with middle_panel:
                         play_content = "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói."
                     else:
                         play_content = tr("Voice Example")
+                elif voice.is_vbee_voice(voice_name):
+                    play_content = "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói."
                 else:
                     play_content = tr("Voice Example")
             with st.spinner(tr("Synthesizing Voice")):
@@ -1285,10 +1686,37 @@ with middle_panel:
 
             config.elevenlabs["api_key"] = elevenlabs_api_key
 
+        # Vbee API key section
+        if selected_tts_server == "vbee" or (
+            voice_name and voice.is_vbee_voice(voice_name)
+        ):
+            saved_vbee_api_key = config.vbee.get("api_key", "")
+            saved_vbee_app_id = config.vbee.get("app_id", "")
+
+            vbee_api_key = st.text_input(
+                tr("Vbee API Key"),
+                value=saved_vbee_api_key,
+                type="password",
+                key="vbee_api_key_input",
+            )
+            vbee_app_id = st.text_input(
+                tr("Vbee App ID"),
+                value=saved_vbee_app_id,
+                key="vbee_app_id_input",
+            )
+
+            st.info(
+                "Vbee TTS Settings:\n"
+                "- Get your API key and App ID at https://vbee.vn/\n"
+            )
+
+            config.vbee["api_key"] = vbee_api_key
+            config.vbee["app_id"] = vbee_app_id
+
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
-            options=[0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0],
-            index=2,
+            options=[0.6, 0.8, 1.0, 1.2, 1.5, 1.7, 2.0, 3.0, 4.0, 5.0],
+            index=5,
         )
 
         params.voice_rate = st.selectbox(
@@ -1345,13 +1773,21 @@ with middle_panel:
         params.bgm_volume = st.selectbox(
             tr("Background Music Volume"),
             options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            index=2,
+            index=6,
         )
 
 with right_panel:
     with st.container(border=True):
         st.write(tr("Subtitle Settings"))
         params.subtitle_enabled = st.checkbox(tr("Enable Subtitles"), value=True)
+        
+        saved_word_level_subtitle = config.ui.get("word_level_subtitle", False)
+        params.word_level_subtitle = st.checkbox(
+            tr("Word-level Subtitles"),
+            value=saved_word_level_subtitle,
+            help=tr("Word-level Subtitles Help")
+        )
+        config.ui["word_level_subtitle"] = params.word_level_subtitle
         font_names = get_all_fonts()
         saved_font_name = config.ui.get("font_name", "MicrosoftYaHeiBold.ttc")
         saved_font_name_index = 0
@@ -1564,10 +2000,11 @@ with right_panel:
                     config.save_config()
                     st.success(tr("Coverr API Key deleted successfully"))
 
-start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
+if st.session_state.get("active_tab") != "📊 Excel Auto Mode":
+    start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary", disabled=is_generating)
+else:
+    start_button = None
 if start_button:
-    config.save_config()
-    task_id = str(uuid4())
     if not params.video_subject and not params.video_script:
         st.error(tr("Video Script and Subject Cannot Both Be Empty"))
         scroll_to_bottom()
@@ -1595,109 +2032,559 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if uploaded_audio_file:
-        task_dir = utils.task_dir(task_id)
-        # 上传文件名来自浏览器，不能直接拼到磁盘路径里；这里只保留扩展名，
-        # 并使用固定文件名保存到当前任务目录，避免路径穿越或特殊字符问题。
-        _, audio_ext = os.path.splitext(os.path.basename(uploaded_audio_file.name))
-        audio_ext = audio_ext.lower() or ".mp3"
-        custom_audio_path = os.path.join(task_dir, f"custom-audio{audio_ext}")
-        with open(custom_audio_path, "wb") as f:
-            f.write(uploaded_audio_file.getbuffer())
-        params.custom_audio_file = custom_audio_path
+    st.session_state["generating_video"] = True
+    st.session_state["run_generation"] = True
+    st.rerun()
 
-    if local_option_files:
-        local_videos_dir = utils.storage_dir("local_videos", create=True)
-        params.local_materials = []
-        for file in local_option_files:
-            file_path = os.path.join(local_videos_dir, f"opt_{file.file_id}_{file.name}")
-            if not os.path.exists(file_path):
-                with open(file_path, "wb") as f:
-                    f.write(file.getbuffer())
-            m = MaterialInfo()
-            m.provider = "local"
-            m.url = file_path
-            params.local_materials.append(m)
+if st.session_state.get("run_generation", False):
+    st.session_state["run_generation"] = False
+    try:
+        config.save_config()
+        task_id = str(uuid4())
+        
+        if uploaded_audio_file:
+            task_dir = utils.task_dir(task_id)
+            # 上传文件名来自浏览器，不能直接拼到磁盘路径里；这里只保留扩展名，
+            # 并使用固定文件名保存到当前任务目录，避免路径穿越或特殊字符问题。
+            _, audio_ext = os.path.splitext(os.path.basename(uploaded_audio_file.name))
+            audio_ext = audio_ext.lower() or ".mp3"
+            custom_audio_path = os.path.join(task_dir, f"custom-audio{audio_ext}")
+            with open(custom_audio_path, "wb") as f:
+                f.write(uploaded_audio_file.getbuffer())
+            params.custom_audio_file = custom_audio_path
 
-    if uploaded_files:
-        local_videos_dir = utils.storage_dir("local_videos", create=True)
-        # 每次重新上传时都以本次选择的素材为准，避免旧素材不断重复追加。
-        params.video_materials = []
-        persisted_local_materials = []
-        for file in uploaded_files:
-            file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
-            with open(file_path, "wb") as f:
-                f.write(file.getbuffer())
+        if local_option_files:
+            local_videos_dir = utils.storage_dir("local_videos", create=True)
+            params.local_materials = []
+            for file in local_option_files:
+                file_path = os.path.join(local_videos_dir, f"opt_{file.file_id}_{file.name}")
+                if not os.path.exists(file_path):
+                    with open(file_path, "wb") as f:
+                        f.write(file.getbuffer())
                 m = MaterialInfo()
                 m.provider = "local"
                 m.url = file_path
-                params.video_materials.append(m)
-                persisted_local_materials.append(
-                    {
-                        "provider": m.provider,
-                        "url": m.url,
-                        "duration": m.duration,
-                    }
-                )
-        # 将已上传并保存到本地的视频素材写入会话，供后续只改文案时直接复用。
-        st.session_state["local_video_materials"] = persisted_local_materials
-    elif "local" in source_list and st.session_state["local_video_materials"]:
-        # 当用户没有重新上传文件时，复用最近一次已经保存到磁盘的本地素材列表。
-        params.video_materials = []
-        for material in st.session_state["local_video_materials"]:
-            m = MaterialInfo()
-            m.provider = material.get("provider", "local")
-            m.url = material.get("url", "")
-            m.duration = material.get("duration", 0)
-            if m.url:
-                params.video_materials.append(m)
+                params.local_materials.append(m)
 
-    progress_container = st.empty()
-    log_expander = st.expander(tr("System Log"), expanded=False)
-    log_container = log_expander.empty()
-    log_records = []
+        if uploaded_files:
+            local_videos_dir = utils.storage_dir("local_videos", create=True)
+            # 每次重新上传时都以本次选择的素材为准，避免旧素材不断重复追加。
+            params.video_materials = []
+            persisted_local_materials = []
+            for file in uploaded_files:
+                file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
+                with open(file_path, "wb") as f:
+                    f.write(file.getbuffer())
+                    m = MaterialInfo()
+                    m.provider = "local"
+                    m.url = file_path
+                    params.video_materials.append(m)
+                    persisted_local_materials.append(
+                        {
+                            "provider": m.provider,
+                            "url": m.url,
+                            "duration": m.duration,
+                        }
+                    )
+            # 将已上传并保存到本地的视频素材写入会话，供后续只改文案时直接复用。
+            st.session_state["local_video_materials"] = persisted_local_materials
+        elif "local" in source_list and st.session_state["local_video_materials"]:
+            # 当用户没有重新上传文件时，复用最近一次已经保存到磁盘的本地素材列表。
+            params.video_materials = []
+            for material in st.session_state["local_video_materials"]:
+                m = MaterialInfo()
+                m.provider = material.get("provider", "local")
+                m.url = material.get("url", "")
+                m.duration = material.get("duration", 0)
+                if m.url:
+                    params.video_materials.append(m)
 
-    def log_received(msg):
-        task = sm.state.get_task(task_id)
-        if task:
-            p = task.get("progress", 0)
-            # Ensure p is between 0 and 100
-            p = max(0, min(100, int(p)))
-            progress_container.progress(p / 100.0, text=f"Progress: {p}%")
-            
-        if config.ui["hide_log"]:
-            return
-        log_records.append(msg)
-        with log_container:
-            st.code("\n".join(log_records))
+        st.markdown('<div class="progress-marker"></div>', unsafe_allow_html=True)
+        progress_container = st.empty()
+        log_expander = st.expander(tr("System Log"), expanded=False)
+        log_container = log_expander.empty()
+        log_records = []
 
-    logger.add(log_received)
+        def log_received(msg):
+            task = sm.state.get_task(task_id)
+            if task:
+                p = task.get("progress", 0)
+                # Ensure p is between 0 and 100
+                p = max(0, min(100, int(p)))
+                progress_bar = st.session_state.get("global_progress_container")
+                if progress_bar:
+                    progress_bar.progress(p / 100.0, text=f"Progress: {p}%")
+                else:
+                    progress_container.progress(p / 100.0, text=f"Progress: {p}%")
+                
+            if config.ui["hide_log"]:
+                return
+            log_records.append(msg)
+            with log_container:
+                st.code("\n".join(log_records))
 
-    st.toast(tr("Generating Video"))
-    logger.info(tr("Start Generating Video"))
-    logger.info(utils.to_json(params))
-    scroll_to_bottom()
+        logger.add(log_received)
 
-    result = tm.start(task_id=task_id, params=params)
-    if not result or "videos" not in result:
-        st.error(tr("Video Generation Failed"))
-        logger.error(tr("Video Generation Failed"))
+        st.toast(tr("Generating Video"))
+        logger.info(tr("Start Generating Video"))
+        logger.info(utils.to_json(params))
         scroll_to_bottom()
-        st.stop()
 
-    video_files = result.get("videos", [])
-    progress_container.progress(1.0, text="Progress: 100% - Completed!")
-    st.success(tr("Video Generation Completed"))
-    try:
-        if video_files:
-            player_cols = st.columns(len(video_files) * 2 + 1)
-            for i, url in enumerate(video_files):
-                player_cols[i * 2 + 1].video(url)
-    except Exception:
+        result = tm.start(task_id=task_id, params=params)
+        if not result or "videos" not in result:
+            st.error(tr("Video Generation Failed"))
+            logger.error(tr("Video Generation Failed"))
+            scroll_to_bottom()
+            st.stop()
+
+        video_files = result.get("videos", [])
+        progress_container.progress(1.0, text="Progress: 100% - Completed!")
+        st.success(tr("Video Generation Completed"))
+        try:
+            if video_files:
+                player_cols = st.columns(len(video_files) * 2 + 1)
+                for i, url in enumerate(video_files):
+                    player_cols[i * 2 + 1].video(url)
+                
+                social_meta = result.get("social_metadata")
+                if social_meta:
+                    with st.expander("📝 Gợi ý Tiêu đề & Caption đăng bài (TikTok / Shorts)", expanded=True):
+                        st.markdown(f"**Tiêu đề:** {social_meta.get('title', '')}")
+                        st.markdown("**Nội dung bài viết (Caption):**")
+                        st.code(social_meta.get('caption', ''), language="text")
+                        st.markdown(f"**Hashtags:** {' '.join(social_meta.get('hashtags', []))}")
+        except Exception as e:
+            logger.error(f"Error displaying social metadata: {e}")
+
+        open_task_folder(task_id)
+        logger.info(tr("Video Generation Completed"))
+        scroll_to_bottom()
+    finally:
+        st.session_state["generating_video"] = False
+        st.rerun()
+
+if start_excel_button:
+    has_error = False
+    if selected_mode_key == "rewrite_template":
+        # Chế độ 2: Tự tạo theo công thức, không cần file Excel hay mẫu
         pass
+    else:
+        if not excel_file or not list_products:
+            st.error("Vui lòng tải lên file Excel hợp lệ có chứa danh sách sản phẩm hoặc chủ đề trước.")
+            has_error = True
+            
+    if has_error:
+        st.stop()
+    else:
+        # Validate keys/providers
+        source_list = params.video_source if isinstance(params.video_source, list) else [params.video_source]
+        if not source_list:
+            st.error(tr("Please Select a Valid Video Source"))
+            st.stop()
+        if "pexels" in source_list and not config.app.get("pexels_api_keys", ""):
+            st.error(tr("Please Enter the Pexels API Key"))
+            st.stop()
+        if "pixabay" in source_list and not config.app.get("pixabay_api_keys", ""):
+            st.error(tr("Please Enter the Pixabay API Key"))
+            st.stop()
+        if "coverr" in source_list and not config.app.get("coverr_api_keys", ""):
+            st.error(tr("Please Enter the Coverr API Key"))
+            st.stop()
+            
+        st.session_state["generating_video"] = True
+        st.session_state["run_excel_generation"] = True
+        st.rerun()
 
-    open_task_folder(task_id)
-    logger.info(tr("Video Generation Completed"))
-    scroll_to_bottom()
+if st.session_state.get("run_excel_generation", False):
+    st.session_state["run_excel_generation"] = False
+    try:
+        with excel_run_container:
+            # Validate keys/providers
+            config.save_config()
+            
+            source_list = params.video_source if isinstance(params.video_source, list) else [params.video_source]
+            
+            # Let's perform the loop
+            st.toast("Bắt đầu quy trình tự động từ Excel...")
+            
+            # Store generated videos to show at the end
+            all_generated_videos = []
+            
+            for idx in range(num_excel_videos):
+                # Check if user clicked Stop
+                if not st.session_state.get("generating_video", False):
+                    logger.warning("Stop request detected. Breaking Excel auto loop...")
+                    break
+                # Determine loai_sp and ten_sp sequentially
+                if list_products:
+                    prod_idx = idx % len(list_products)
+                    ten_sp = list_products[prod_idx]
+                    loai_sp = list_niches[prod_idx] if prod_idx < len(list_niches) else ""
+                else:
+                    ten_sp = ""
+                    loai_sp = ""
+                
+                # Determine kich_ban_mau sequentially
+                if list_scripts:
+                    script_idx = idx % len(list_scripts)
+                    kich_ban_mau = list_scripts[script_idx]
+                else:
+                    kich_ban_mau = ""
+                
+                # Determine subject and prompt overrides based on mode
+                if params.video_subject:
+                    current_subject = params.video_subject
+                else:
+                    if selected_mode_key == "rewrite_template":
+                        current_subject = ""
+                    else:
+                        current_subject = f"{loai_sp} - {ten_sp}" if loai_sp else ten_sp
+                
+                excel_rewrite_formula_choice = st.session_state.get("excel_rewrite_formula_radio", "Ngẫu nhiên")
+                if "ngẫu nhiên" in excel_rewrite_formula_choice.lower():
+                    import random
+                    excel_rewrite_formula_choice = random.choice(["Công thức 1", "Công thức 2"])
+                excel_custom_prompt_choice = st.session_state.get("excel_custom_prompt_input", "")
+                excel_rewrite_genre_choice = st.session_state.get("excel_rewrite_genre_select", "Ngẫu nhiên")
+                excel_rewrite_niche_choice = st.session_state.get("excel_rewrite_niche_radio", "Ngách 1")
+
+                if selected_mode_key == "rewrite_template":
+                    # Randomize genre if selected
+                    genre_options = ["Chữa lành", "Truyền động lực", "Thức tỉnh / Triết lý", "Bài học cuộc sống", "Tình yêu", "Sự nghiệp & Phát triển bản thân"]
+                    import random
+                    if excel_rewrite_genre_choice == "Ngẫu nhiên":
+                        selected_genre = random.choice(genre_options)
+                    else:
+                        selected_genre = excel_rewrite_genre_choice
+
+                    if not current_subject:
+                        current_subject = f"{selected_genre} - Kịch bản {idx + 1}"
+
+                    if "ngách 2" in excel_rewrite_niche_choice.lower():
+                        # Niche 2: Finance
+                        if "công thức 1" in excel_rewrite_formula_choice.lower() or "vanmau1" in excel_rewrite_formula_choice.lower():
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa liên quan đến tài chính, tiền bạc, đầu tư hoặc tư duy làm giàu và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau1 (5 phần):\n"
+                                "1. Hook: Mở đầu bằng một trích dẫn sâu sắc về tiền bạc, đầu tư hoặc tư duy làm giàu của một tỷ phú/nhà đầu tư vĩ đại (ví dụ: Warren Buffett, Naval Ravikant, Bill Gates...) để thu hút.\n"
+                                "2. Intro: Giới thiệu bài học về tư duy tài chính thông minh và chủ đề (dùng cụm 'lùi lại một nhịp').\n"
+                                "3. Insight: Đồng cảm về thực trạng bẫy tiêu dùng, nợ nần, tư duy nghèo hoặc thói quen tài chính sai lầm phổ biến (dùng cụm 'Bạn biết không...').\n"
+                                "4. Shift: Chuyển đổi góc nhìn tích cực, giải thích câu trích dẫn để đưa ra tư duy tài chính đúng đắn (dùng cụm 'Nhưng...').\n"
+                                "5. Kết luận: Đưa ra lời khuyên hành động tài chính khôn ngoan, chốt cảm xúc động lực (dùng cụm 'Hôm nay,...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Intro, v.v., hãy nối các câu lại một cách tự nhiên và truyền cảm hứng).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                        else: # vanmau2
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa liên quan đến tài chính, tiền bạc, đầu tư hoặc tư duy làm giàu và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau2 (4 phần):\n"
+                                "1. Hook: Đi thẳng vào vấn đề bằng một câu khẳng định mạnh mẽ, một thực tế phũ phàng về tiền bạc hoặc câu hỏi tu từ sắc bén về việc làm giàu để thu hút sự chú ý ngay lập tức.\n"
+                                "2. Định nghĩa/Dẫn chứng: Dùng cấu trúc 'Không phải... mà là...' để định nghĩa lại khái niệm tài chính hoặc kể một dẫn chứng/câu chuyện ngắn của một nhà đầu tư/tỷ phú để chứng minh.\n"
+                                "3. Thực tế (Reality check): Chỉ ra thói quen tiêu xài hoang phí, sợ đầu tư hoặc lười gia tăng thu nhập của người nghe (dùng cụm 'Còn mình ư?' hoặc 'Thế mà chúng ta...').\n"
+                                "4. Chốt hạ: Một câu triết lý tài chính đanh thép, ngắn gọn và kêu gọi người xem tương tác bình luận (ví dụ: 'Viết vào comment đi...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Định nghĩa, v.v., hãy nối các câu lại một cách tự nhiên và sắc bén).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                    elif "ngách 3" in excel_rewrite_niche_choice.lower():
+                        # Niche 3: Health & Wellness
+                        if "công thức 1" in excel_rewrite_formula_choice.lower() or "vanmau1" in excel_rewrite_formula_choice.lower():
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa về sức khỏe, thực phẩm chức năng, làm đẹp hoặc lối sống lành mạnh và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau1 (5 phần):\n"
+                                "1. Hook: Mở đầu bằng một nghiên cứu khoa học, câu nói của danh y vĩ đại (ví dụ: Hippocrates...) hoặc một thực trạng sức khỏe/lão hóa đáng báo động để thu hút.\n"
+                                "2. Intro: Giới thiệu bí quyết sống khỏe đẹp chủ động và chủ đề dinh dưỡng/làm đẹp (dùng cụm 'lùi lại một nhịp').\n"
+                                "3. Insight: Đồng cảm về sai lầm trong ăn uống, chăm sóc da hoặc thói quen tàn phá cơ thể phổ biến (dùng cụm 'Bạn biết không...').\n"
+                                "4. Shift: Chuyển đổi góc nhìn tích cực, giải thích lợi ích của giải pháp tự nhiên/thải độc/bổ sung vi chất (dùng cụm 'Nhưng...').\n"
+                                "5. Kết luận: Đưa ra lời khuyên duy trì lối sống lành mạnh, chăm sóc bản thân, chốt cảm xúc ấm áp (dùng cụm 'Hôm nay,...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Intro, v.v., hãy nối các câu lại một cách tự nhiên và truyền cảm hứng).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                        else: # vanmau2
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa về sức khỏe, thực phẩm chức năng, làm đẹp hoặc lối sống lành mạnh và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau2 (4 phần):\n"
+                                "1. Hook: Đi thẳng vào vấn đề bằng một câu khẳng định mạnh mẽ, một sự thật đáng báo động về sức khỏe, cân nặng hoặc lão hóa để thu hút sự chú ý ngay lập tức.\n"
+                                "2. Định nghĩa/Dẫn chứng: Dùng cấu trúc 'Không phải... mà là...' để định nghĩa lại khái niệm sống khỏe đẹp thực sự, hoặc đưa ra số liệu/nghiên cứu khoa học ngắn gọn để chứng minh.\n"
+                                "3. Thực tế (Reality check): Chỉ ra thói quen lười vận động, ăn đồ ăn nhanh, thức khuya hoặc bỏ bê bản thân của người nghe (dùng cụm 'Còn mình ư?' hoặc 'Thế mà chúng ta...').\n"
+                                "4. Chốt hạ: Lời khuyên hoặc nhắc nhở yêu thương cơ thể đanh thép, kêu gọi người xem tương tác bình luận (ví dụ: 'Viết vào comment đi...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Định nghĩa, v.v., hãy nối các câu lại một cách tự nhiên và sắc bén).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                    elif "ngách 4" in excel_rewrite_niche_choice.lower():
+                        # Niche 4: Decor, Feng Shui
+                        if "công thức 1" in excel_rewrite_formula_choice.lower() or "vanmau1" in excel_rewrite_formula_choice.lower():
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa về phong thủy, năng lượng nhà ở, xem bói hoặc trang trí phòng (Decor) và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau1 (5 phần):\n"
+                                "1. Hook: Mở đầu bằng một triết lý về năng lượng không gian sống, nhân quả, hoặc câu nói cổ xưa về phong thủy/tâm linh để thu hút.\n"
+                                "2. Intro: Giới thiệu loạt chia sẻ về năng lượng nhà ở, vận mệnh và tâm thức (dùng cụm 'lùi lại một nhịp').\n"
+                                "3. Insight: Đồng cảm về hiện trạng tại sao cuộc sống bế tắc, tài lộc sa sút do không gian sống bừa bộn hoặc năng lượng xấu tích tụ (dùng cụm 'Bạn biết không...').\n"
+                                "4. Shift: Chuyển đổi góc nhìn tích cực, giải thích cách dọn dẹp, sắp xếp lại đồ decor/vật phẩm phong thủy để kích hoạt năng lượng tốt (dùng cụm 'Nhưng...').\n"
+                                "5. Kết luận: Lời khuyên bình an tâm trí, thu hút tài lộc, chốt cảm xúc ấm áp (dùng cụm 'Hôm nay,...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Intro, v.v., hãy nối các câu lại một cách tự nhiên và truyền cảm hứng).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                        else: # vanmau2
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa về phong thủy, năng lượng nhà ở, xem bói hoặc trang trí phòng (Decor) và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau2 (4 phần):\n"
+                                "1. Hook: Đi thẳng vào vấn đề bằng một câu khẳng định mạnh mẽ, một sự thật về vận mệnh, may mắn hoặc năng lượng của ngôi nhà để thu hút sự chú ý ngay lập tức.\n"
+                                "2. Định nghĩa/Dẫn chứng: Dùng cấu trúc 'Không phải... mà là...' để định nghĩa lại phong thủy tốt nhất (ví dụ: phong thủy tốt nhất không ở hướng đất mà ở tâm thế/sự ngăn nắp) hoặc dẫn câu chuyện cổ nhân để chứng minh.\n"
+                                "3. Thực tế (Reality check): Chỉ ra thói quen mong cầu may mắn nhưng lười dọn dẹp, không chịu chăm chút không gian sống của người nghe (dùng cụm 'Còn mình ư?' hoặc 'Thế mà chúng ta...').\n"
+                                "4. Chốt hạ: Một câu triết lý về năng lượng bình an và thu hút tài lộc đanh thép, kêu gọi người xem tương tác bình luận (ví dụ: 'Viết vào comment đi...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Định nghĩa, v.v., hãy nối các câu lại một cách tự nhiên và sắc bén).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                    elif "ngách 5" in excel_rewrite_niche_choice.lower():
+                        # Niche 5: Home Fitness
+                        if "công thức 1" in excel_rewrite_formula_choice.lower() or "vanmau1" in excel_rewrite_formula_choice.lower():
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa về tập thể dục tại nhà, rèn luyện vóc dáng hoặc kỷ luật bản thân và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau1 (5 phần):\n"
+                                "1. Hook: Mở đầu bằng một trích dẫn truyền cảm hứng về kỷ luật bản thân, sức khỏe thể chất hoặc sức mạnh ý chí của các vận động viên/vĩ nhân để thu hút.\n"
+                                "2. Intro: Giới thiệu thói quen rèn luyện thể thao và sử dụng dụng cụ tập thể dục hiệu quả tại nhà (dùng cụm 'lùi lại một nhịp').\n"
+                                "3. Insight: Đồng cảm về sự lười biếng, trì hoãn hoặc lý do bận rộn không có thời gian ra phòng gym (dùng cụm 'Bạn biết không...').\n"
+                                "4. Shift: Chuyển đổi góc nhìn tích cực, chỉ cần 15 phút tập luyện tại nhà cùng dụng cụ đơn giản để cải thiện vóc dáng rõ rệt (dùng cụm 'Nhưng...').\n"
+                                "5. Kết luận: Lời động viên hành động ngay, duy trì kỷ luật bản thân, chốt cảm xúc tràn đầy năng lượng (dùng cụm 'Hôm nay,...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Intro, v.v., hãy nối các câu lại một cách tự nhiên và truyền cảm hứng).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                        else: # vanmau2
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa về tập thể dục tại nhà, rèn luyện vóc dáng hoặc kỷ luật bản thân và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau2 (4 phần):\n"
+                                "1. Hook: Đi thẳng vào vấn đề bằng một câu khẳng định mạnh mẽ, một sự thật phũ phàng hoặc một lời cảnh tỉnh về sự đi xuống của thể lực/vóc dáng để thu hút sự chú ý ngay lập tức.\n"
+                                "2. Định nghĩa/Dẫn chứng: Dùng cấu trúc 'Không phải... mà là...' để định nghĩa lại tập luyện thực sự (ví dụ: tập gym không phải là giảm cân cấp tốc mà là xây dựng kỷ luật bền bỉ) hoặc đưa ra dẫn chứng của vận động viên/vĩ nhân để chứng minh.\n"
+                                "3. Thực tế (Reality check): Chỉ ra thói quen thích mua dụng cụ tập về bám bụi, lười vận động hoặc luôn tìm lý do trì hoãn của người nghe (dùng cụm 'Còn mình ư?' hoặc 'Thế mà chúng ta...').\n"
+                                "4. Chốt hạ: Một thông điệp đanh thép kêu gọi xỏ giày vào hành động tập luyện ngay, kêu gọi người xem tương tác bình luận (ví dụ: 'Viết vào comment đi...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Định nghĩa, v.v., hãy nối các câu lại một cách tự nhiên và sắc bén).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                    else:
+                        # Niche 1 (Motivation)
+                        if "công thức 1" in excel_rewrite_formula_choice.lower() or "vanmau1" in excel_rewrite_formula_choice.lower():
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau1 (5 phần):\n"
+                                "1. Hook: Mở đầu bằng một trích dẫn sâu sắc/truyền cảm hứng của một vĩ nhân/nhà văn/triết gia để thu hút.\n"
+                                "2. Intro: Chào mừng đến với series 'Những câu nói hay đáng để suy ngẫm' và giới thiệu chủ đề (dùng cụm 'lùi lại một nhịp').\n"
+                                "3. Insight: Đồng cảm về thực trạng/vấn đề phổ biến trong cuộc sống liên quan đến chủ đề trên (dùng cụm 'Bạn biết không...').\n"
+                                "4. Shift: Chuyển đổi góc nhìn tích cực, giải thích câu trích dẫn để gỡ rối (dùng cụm 'Nhưng...').\n"
+                                "5. Kết luận: Đưa ra lời khuyên nhẹ nhàng, chốt cảm xúc ấm áp (dùng cụm 'Hôm nay,...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Intro, v.v., hãy nối các câu lại một cách tự nhiên và truyền cảm hứng).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                        else:  # vanmau2
+                            formula_instruct = (
+                                f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                                "Hãy tự nghĩ ra một chủ đề ý nghĩa và viết một kịch bản hoàn toàn mới theo cấu trúc công thức vanmau2 (4 phần):\n"
+                                "1. Hook: Đi thẳng vào vấn đề bằng một câu khẳng định mạnh mẽ, một sự thật phũ phàng hoặc một câu hỏi tu từ sắc bén để thu hút sự chú ý ngay lập tức.\n"
+                                "2. Định nghĩa/Dẫn chứng: Dùng cấu trúc 'Không phải... mà là...' định nghĩa lại khái niệm theo cách mộc mạc/sâu sắc hoặc kể một dẫn chứng/câu chuyện ngắn của vĩ nhân để chứng minh.\n"
+                                "3. Thực tế (Reality check): Chỉ ra thói quen/tâm lý trì hoãn hoặc yếu đuối của người nghe (dùng cụm 'Còn mình ư?' hoặc 'Thế mà chúng ta...').\n"
+                                "4. Chốt hạ: Một câu triết lý đanh thép, ngắn gọn và kêu gọi người xem tương tác bình luận (ví dụ: 'Viết vào comment đi...').\n\n"
+                                "Lưu ý quan trọng:\n"
+                                "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Định nghĩa, v.v., hãy nối các câu lại một cách tự nhiên và sắc bén).\n"
+                                "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                                "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                            )
+                    
+                    current_script_prompt = formula_instruct
+                elif selected_mode_key == "free_creation":
+                    current_script_prompt = excel_custom_prompt_choice if excel_custom_prompt_choice else params.video_script_prompt
+                else: # sales_review or fallback
+                    current_script_prompt = params.video_script_prompt if params.video_script_prompt else kich_ban_mau
+                
+                excel_video_keywords_choice = st.session_state.get("excel_video_keywords_input", "").strip()
+                if excel_video_keywords_choice:
+                    if "ngẫu nhiên" in excel_video_keywords_choice.lower() or "random" in excel_video_keywords_choice.lower():
+                        import random
+                        valid_keys = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]]
+                        selected_key = random.choice(valid_keys)
+                        current_terms = VIBE_COMBOS[selected_key]
+                    else:
+                        current_terms = excel_video_keywords_choice
+                else:
+                    current_terms = params.video_terms
+                
+                # Display sub-task header
+                st.markdown(f"---")
+                st.markdown(f"#### 🎬 Video {idx + 1}/{num_excel_videos}: **{current_subject}**")
+                
+                # Create unique task ID
+                task_id = str(uuid4())
+                
+                # Clone/prepare params for this task
+                run_params = VideoParams(**params.model_dump())
+                run_params.video_subject = current_subject
+                run_params.video_script_prompt = current_script_prompt
+                run_params.video_script = ""
+                run_params.video_terms = current_terms
+                
+                # Apply Excel-specific Advanced Script Settings overrides
+                run_params.paragraph_number = st.session_state.get("excel_paragraph_number_input", params.paragraph_number)
+                run_params.script_word_count = st.session_state.get("excel_script_word_count_input", params.script_word_count)
+                if st.session_state.get("excel_use_custom_system_prompt", False):
+                    run_params.custom_system_prompt = st.session_state.get("excel_custom_system_prompt", "").strip()
+                else:
+                    run_params.custom_system_prompt = params.custom_system_prompt
+                
+                # Process uploaded audio/materials specifically for this task_id
+                _uploaded_audio_file = st.session_state.get("custom_audio_file_uploader")
+                if _uploaded_audio_file:
+                    task_dir = utils.task_dir(task_id)
+                    _, audio_ext = os.path.splitext(os.path.basename(_uploaded_audio_file.name))
+                    audio_ext = audio_ext.lower() or ".mp3"
+                    custom_audio_path = os.path.join(task_dir, f"custom-audio{audio_ext}")
+                    with open(custom_audio_path, "wb") as f:
+                        f.write(_uploaded_audio_file.getbuffer())
+                    run_params.custom_audio_file = custom_audio_path
+
+                _local_option_files = st.session_state.get("local_option_files_uploader")
+                if _local_option_files:
+                    local_videos_dir = utils.storage_dir("local_videos", create=True)
+                    run_params.local_materials = []
+                    for file in _local_option_files:
+                        file_path = os.path.join(local_videos_dir, f"opt_{file.file_id}_{file.name}")
+                        if not os.path.exists(file_path):
+                            with open(file_path, "wb") as f:
+                                f.write(file.getbuffer())
+                        m = MaterialInfo()
+                        m.provider = "local"
+                        m.url = file_path
+                        run_params.local_materials.append(m)
+
+                _uploaded_files = st.session_state.get("uploaded_files_uploader")
+                if _uploaded_files:
+                    local_videos_dir = utils.storage_dir("local_videos", create=True)
+                    run_params.video_materials = []
+                    persisted_local_materials = []
+                    for file in _uploaded_files:
+                        file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
+                        with open(file_path, "wb") as f:
+                            f.write(file.getbuffer())
+                            m = MaterialInfo()
+                            m.provider = "local"
+                            m.url = file_path
+                            run_params.video_materials.append(m)
+                            persisted_local_materials.append(
+                                {
+                                    "provider": m.provider,
+                                    "url": m.url,
+                                    "duration": m.duration,
+                                }
+                            )
+                    st.session_state["local_video_materials"] = persisted_local_materials
+                elif "local" in source_list and st.session_state["local_video_materials"]:
+                    run_params.video_materials = []
+                    for material in st.session_state["local_video_materials"]:
+                        m = MaterialInfo()
+                        m.provider = material.get("provider", "local")
+                        m.url = material.get("url", "")
+                        m.duration = material.get("duration", 0)
+                        if m.url:
+                            run_params.video_materials.append(m)
+                
+                # Output containers
+                st.markdown('<div class="progress-marker"></div>', unsafe_allow_html=True)
+                progress_container = st.empty()
+                
+                # Khởi tạo tiến trình ban đầu 0% cho video hiện tại
+                init_text = f"Đang tạo video {idx + 1}/{num_excel_videos} (0%) | Đã hoàn thành: {idx}/{num_excel_videos}"
+                progress_container.progress(0.0, text=init_text)
+                progress_bar = st.session_state.get("global_progress_container")
+                if progress_bar:
+                    progress_bar.progress(0.0, text=init_text)
+
+                log_expander = st.expander(f"Nhật ký hệ thống - Video {idx + 1}", expanded=False)
+                log_container = log_expander.empty()
+                log_records = []
+
+                def log_received_excel(msg):
+                    task = sm.state.get_task(task_id)
+                    if task:
+                        p = task.get("progress", 0)
+                        p = max(0, min(100, int(p)))
+                        progress_text = f"Đang tạo video {idx + 1}/{num_excel_videos} ({p}%) | Đã hoàn thành: {idx}/{num_excel_videos}"
+                        
+                        progress_bar = st.session_state.get("global_progress_container")
+                        if progress_bar:
+                            progress_bar.progress(p / 100.0, text=progress_text)
+                        
+                        progress_container.progress(p / 100.0, text=progress_text)
+                    
+                    log_records.append(msg)
+                    with log_container:
+                        st.code("\n".join(log_records))
+
+                logger_id = logger.add(log_received_excel)
+                
+                try:
+                    logger.info(f"Bắt đầu tạo video {idx + 1}: Subject: {current_subject}")
+                    result = tm.start(task_id=task_id, params=run_params)
+                    
+                    if not result or "videos" not in result:
+                        fail_text = f"Đang tạo video {idx + 1}/{num_excel_videos} - Thất bại! | Đã hoàn thành: {idx}/{num_excel_videos}"
+                        progress_container.progress(1.0, text=fail_text)
+                        progress_bar = st.session_state.get("global_progress_container")
+                        if progress_bar:
+                            progress_bar.progress(1.0, text=fail_text)
+                        st.error(f"Tạo Video thất bại: {current_subject}")
+                        logger.error(f"Tạo Video thất bại: {current_subject}")
+                    else:
+                        video_files = result.get("videos", [])
+                        success_text = f"Đang tạo video {idx + 1}/{num_excel_videos} (100%) - Hoàn thành! | Đã hoàn thành: {idx + 1}/{num_excel_videos}"
+                        progress_container.progress(1.0, text=success_text)
+                        progress_bar = st.session_state.get("global_progress_container")
+                        if progress_bar:
+                            progress_bar.progress(1.0, text=success_text)
+                        st.success(f"Tạo Video thành công: {current_subject}")
+                        all_generated_videos.extend(video_files)
+                        
+                        # Render video immediately
+                        player_cols = st.columns(len(video_files) * 2 + 1)
+                        for i, url in enumerate(video_files):
+                            player_cols[i * 2 + 1].video(url)
+                        
+                        social_meta = result.get("social_metadata")
+                        if social_meta:
+                            with st.expander(f"📝 Tiêu đề & Caption gợi ý - Video {idx + 1}", expanded=True):
+                                st.markdown(f"**Tiêu đề:** {social_meta.get('title', '')}")
+                                st.markdown("**Nội dung bài viết (Caption):**")
+                                st.code(social_meta.get('caption', ''), language="text")
+                                st.markdown(f"**Hashtags:** {' '.join(social_meta.get('hashtags', []))}")
+                        
+                        open_task_folder(task_id)
+                except Exception as e:
+                    st.error(f"Lỗi hệ thống khi tạo Video: {e}")
+                    logger.exception(e)
+                finally:
+                    try:
+                        logger.remove(logger_id)
+                    except ValueError:
+                        pass
+                    
+            st.balloons()
+            st.success(f"🎉 Hoàn thành tạo hàng loạt {num_excel_videos} video!")
+    finally:
+        st.session_state["generating_video"] = False
+        st.rerun()
 
 config.save_config()

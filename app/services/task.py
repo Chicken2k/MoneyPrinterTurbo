@@ -153,6 +153,7 @@ def generate_audio(task_id, params, video_script):
             voice_name=voice.parse_voice_name(params.voice_name),
             voice_rate=params.voice_rate,
             voice_file=audio_file,
+            word_level_subtitle=getattr(params, "word_level_subtitle", False),
         )
         if sub_maker is None:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
@@ -197,7 +198,10 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     subtitle_fallback = False
     if subtitle_provider == "edge":
         voice.create_subtitle(
-            text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
+            text=video_script,
+            sub_maker=sub_maker,
+            subtitle_file=subtitle_path,
+            word_level_subtitle=getattr(params, "word_level_subtitle", False),
         )
         if not os.path.exists(subtitle_path):
             subtitle_fallback = True
@@ -475,6 +479,26 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             else:
                 logger.warning(f"⚠️ Failed to cross-post: {video_path} - {result.get('error', 'Unknown error')}")
 
+    # 8. Generate and save social post caption to caption.txt in task directory
+    metadata = None
+    try:
+        logger.info("\n\n## generating social post caption file")
+        metadata = llm.generate_social_metadata(
+            video_subject=params.video_subject,
+            video_script=video_script,
+            language=params.video_language or "",
+            platform="tiktok",
+        )
+        if metadata:
+            caption_file = path.join(utils.task_dir(task_id), "caption.txt")
+            with open(caption_file, "w", encoding="utf-8") as f:
+                f.write(f"Tiêu đề: {metadata.get('title', '')}\n\n")
+                f.write(f"Caption:\n{metadata.get('caption', '')}\n\n")
+                f.write(f"Hashtags: {' '.join(metadata.get('hashtags', []))}\n")
+            logger.success(f"saved social post caption to {caption_file}")
+    except Exception as e:
+        logger.error(f"failed to generate or save social post caption: {e}")
+
     kwargs = {
         "videos": final_video_paths,
         "combined_videos": combined_video_paths,
@@ -485,6 +509,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
         "cross_post_results": cross_post_results if cross_post_results else None,
+        "social_metadata": metadata,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs

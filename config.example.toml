@@ -362,6 +362,13 @@ api_key = ""
 # Model: eleven_multilingual_v2 | eleven_flash_v2_5 | eleven_v3
 model_id = "eleven_multilingual_v2"
 
+[vbee]
+# Vbee API Bearer Token
+# Có dạng Bearer <access_token>
+api_key = ""
+# Vbee App-Id
+app_id = ""
+
 [ui]
 # UI related settings
 # 是否隐藏日志信息

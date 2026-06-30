@@ -1,0 +1,499 @@
+﻿diff --git a/webui/Main.py b/webui/Main.py
+index 7ca2f78..1c3663a 100644
+--- a/webui/Main.py
++++ b/webui/Main.py
+@@ -1,10 +1,12 @@
+ import os
+ import sys
+ import webbrowser
++import random
+ from uuid import UUID, uuid4
+ 
+ import requests
+ import streamlit as st
++import pandas as pd
+ from loguru import logger
+ 
+ # Add the root directory of the project to the system path to allow importing modules from the project
+@@ -696,122 +698,203 @@ uploaded_files = []
+ uploaded_audio_file = None
+ 
+ with left_panel:
+-    with st.container(border=True):
+-        st.write(tr("Video Script Settings"))
+-        params.video_subject = st.text_input(
+-            tr("Video Subject"),
+-            key="video_subject",
+-        ).strip()
+-
+-        video_languages = [
+-            (tr("Auto Detect"), ""),
+-        ]
+-        for code in support_locales:
+-            video_languages.append((code, code))
+-
+-        selected_index = st.selectbox(
+-            tr("Script Language"),
+-            index=0,
+-            options=range(
+-                len(video_languages)
+-            ),  # Use the index as the internal option value
+-            format_func=lambda x: video_languages[x][
+-                0
+-            ],  # The label is displayed to the user
+-        )
+-        params.video_language = video_languages[selected_index][1]
+-
+-        with st.expander(tr("Advanced Script Settings"), expanded=False):
+-            params.paragraph_number = st.number_input(
+-                tr("Script Paragraph Number"),
+-                min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
+-                max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
+-                value=st.session_state.get("paragraph_number_input", 1),
+-                step=1,
+-                key="paragraph_number_input",
+-            )
+-            params.script_word_count = st.number_input(
+-                "Target Word Count (Optional) / Sá»‘ chá»¯",
+-                min_value=0,
+-                max_value=10000,
+-                value=st.session_state.get("script_word_count_input", 0),
+-                step=50,
+-                key="script_word_count_input",
+-                help="Nháº­p sá»‘ lÆ°á»£ng chá»¯ (tá»«) mong muá»‘n cho ká»‹ch báº£n. Äá»ƒ 0 náº¿u muá»‘n AI tá»± quyáº¿t Ä‘á»‹nh."
+-            )
+-            params.video_script_prompt = st.text_area(
+-                tr("Custom Script Requirements"),
+-                height=100,
+-                max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
+-                placeholder=tr("Custom Script Requirements Placeholder"),
+-                key="video_script_prompt",
++    tab_script_manual, tab_script_excel = st.tabs([tr("Video Script Settings"), "đŸ“ Excel Auto Mode"])
++    
++    with tab_script_manual:
++        with st.container(border=True):
++            st.write(tr("Video Script Settings"))
++            params.video_subject = st.text_input(
++                tr("Video Subject"),
++                key="video_subject",
+             ).strip()
+ 
+-            use_custom_system_prompt = st.checkbox(
+-                tr("Use Custom System Prompt"),
+-                help=tr("Use Custom System Prompt Help"),
+-                key="use_custom_system_prompt",
++            video_languages = [
++                (tr("Auto Detect"), ""),
++            ]
++            for code in support_locales:
++                video_languages.append((code, code))
++
++            selected_index = st.selectbox(
++                tr("Script Language"),
++                index=0,
++                options=range(
++                    len(video_languages)
++                ),  # Use the index as the internal option value
++                format_func=lambda x: video_languages[x][
++                    0
++                ],  # The label is displayed to the user
+             )
+-
+-            if use_custom_system_prompt:
+-                custom_system_prompt = st.text_area(
+-                    tr("Custom System Prompt"),
+-                    height=240,
+-                    max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
+-                    key="custom_system_prompt",
+-                ).strip()
+-                params.custom_system_prompt = custom_system_prompt
+-            else:
+-                params.custom_system_prompt = ""
+-
+-        if st.button(
+-            tr("Generate Video Script and Keywords"), key="auto_generate_script"
+-        ):
+-            with st.spinner(tr("Generating Video Script and Keywords")):
+-                script = llm.generate_script(
+-                    video_subject=params.video_subject,
+-                    language=params.video_language,
+-                    paragraph_number=params.paragraph_number,
+-                    video_script_prompt=params.video_script_prompt,
+-                    custom_system_prompt=params.custom_system_prompt,
+-                    script_word_count=params.script_word_count,
++            params.video_language = video_languages[selected_index][1]
++
++            with st.expander(tr("Advanced Script Settings"), expanded=False):
++                params.paragraph_number = st.number_input(
++                    tr("Script Paragraph Number"),
++                    min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
++                    max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
++                    value=st.session_state.get("paragraph_number_input", 1),
++                    step=1,
++                    key="paragraph_number_input",
+                 )
+-                terms = llm.generate_terms(
+-                    params.video_subject,
+-                    script,
+-                    amount=8 if params.match_materials_to_script else 5,
+-                    match_script_order=params.match_materials_to_script,
++                params.script_word_count = st.number_input(
++                    "Target Word Count (Optional) / Sá»‘ chá»¯",
++                    min_value=0,
++                    max_value=10000,
++                    value=st.session_state.get("script_word_count_input", 0),
++                    step=50,
++                    key="script_word_count_input",
++                    help="Nháº­p sá»‘ lÆ°á»£ng chá»¯ (tá»«) mong muá»‘n cho ká»‹ch báº£n. Äá»ƒ 0 náº¿u muá»‘n AI tá»± quyáº¿t Ä‘á»‹nh."
+                 )
+-                if "Error: " in script:
+-                    st.error(tr(script))
+-                elif "Error: " in terms:
+-                    st.error(tr(terms))
+-                else:
+-                    st.session_state["video_script"] = script
+-                    st.session_state["video_terms"] = ", ".join(terms)
+-        params.video_script = st.text_area(
+-            tr("Video Script"), value=st.session_state["video_script"], height=280
+-        )
+-        if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
+-            if not params.video_script:
+-                st.error(tr("Please Enter the Video Subject"))
+-                st.stop()
++                params.video_script_prompt = st.text_area(
++                    tr("Custom Script Requirements"),
++                    height=100,
++                    max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
++                    placeholder=tr("Custom Script Requirements Placeholder"),
++                    key="video_script_prompt",
++                ).strip()
+ 
+-            with st.spinner(tr("Generating Video Keywords")):
+-                terms = llm.generate_terms(
+-                    params.video_subject,
+-                    params.video_script,
+-                    amount=8 if params.match_materials_to_script else 5,
+-                    match_script_order=params.match_materials_to_script,
++                use_custom_system_prompt = st.checkbox(
++                    tr("Use Custom System Prompt"),
++                    help=tr("Use Custom System Prompt Help"),
++                    key="use_custom_system_prompt",
+                 )
+-                if "Error: " in terms:
+-                    st.error(tr(terms))
++
++                if use_custom_system_prompt:
++                    custom_system_prompt = st.text_area(
++                        tr("Custom System Prompt"),
++                        height=240,
++                        max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
++                        key="custom_system_prompt",
++                    ).strip()
++                    params.custom_system_prompt = custom_system_prompt
+                 else:
+-                    st.session_state["video_terms"] = ", ".join(terms)
++                    params.custom_system_prompt = ""
+ 
+-        params.video_terms = st.text_area(
+-            tr("Video Keywords"), value=st.session_state["video_terms"]
+-        )
++            if st.button(
++                tr("Generate Video Script and Keywords"), key="auto_generate_script"
++            ):
++                with st.spinner(tr("Generating Video Script and Keywords")):
++                    script = llm.generate_script(
++                        video_subject=params.video_subject,
++                        language=params.video_language,
++                        paragraph_number=params.paragraph_number,
++                        video_script_prompt=params.video_script_prompt,
++                        custom_system_prompt=params.custom_system_prompt,
++                        script_word_count=params.script_word_count,
++                    )
++                    terms = llm.generate_terms(
++                        params.video_subject,
++                        script,
++                        amount=8 if params.match_materials_to_script else 5,
++                        match_script_order=params.match_materials_to_script,
++                    )
++                    if "Error: " in script:
++                        st.error(tr(script))
++                    elif "Error: " in terms:
++                        st.error(tr(terms))
++                    else:
++                        st.session_state["video_script"] = script
++                        st.session_state["video_terms"] = ", ".join(terms)
++            params.video_script = st.text_area(
++                tr("Video Script"), value=st.session_state["video_script"], height=280
++            )
++            if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
++                if not params.video_script:
++                    st.error(tr("Please Enter the Video Subject"))
++                    st.stop()
++
++                with st.spinner(tr("Generating Video Keywords")):
++                    terms = llm.generate_terms(
++                        params.video_subject,
++                        params.video_script,
++                        amount=8 if params.match_materials_to_script else 5,
++                        match_script_order=params.match_materials_to_script,
++                    )
++                    if "Error: " in terms:
++                        st.error(tr(terms))
++                    else:
++                        st.session_state["video_terms"] = ", ".join(terms)
++
++            params.video_terms = st.text_area(
++                tr("Video Keywords"), value=st.session_state["video_terms"]
++            )
++
++    with tab_script_excel:
++        with st.container(border=True):
++            st.write("**Cháº¡y tá»± Ä‘á»™ng tá»« Excel (Excel Auto Mode)**")
++            excel_file = st.file_uploader(
++                "Táº£i lĂªn file Excel máº«u (.xlsx, .xls)",
++                type=["xlsx", "xls"],
++                key="excel_auto_file",
++                help="File Excel cáº§n chá»©a cĂ¡c cá»™t: Loáº¡i sáº£n pháº©m, TĂªn sáº£n pháº©m, Ká»‹ch báº£n máº«u"
++            )
++            
++            list_niches = []
++            list_products = []
++            list_scripts = []
++            df_products = None
++            
++            if excel_file:
++                try:
++                    df = pd.read_excel(excel_file)
++                    df.columns = [c.strip() for c in df.columns]
++                    
++                    col_niche = None
++                    col_product = None
++                    col_script = None
++                    
++                    for col in df.columns:
++                        col_lower = col.lower()
++                        if "loáº¡i sáº£n pháº©m" in col_lower or "niche" in col_lower or "chá»§ Ä‘á»" in col_lower:
++                            col_niche = col
++                        elif "tĂªn sáº£n pháº©m" in col_lower or "product" in col_lower:
++                            col_product = col
++                        elif "ká»‹ch báº£n" in col_lower or "script" in col_lower or "vÄƒn máº«u" in col_lower:
++                            col_script = col
++                            
++                    # Fallback to column indices if not found by name
++                    if not col_niche and len(df.columns) > 0:
++                        col_niche = df.columns[0]
++                    if not col_product and len(df.columns) > 1:
++                        col_product = df.columns[1]
++                    if not col_script and len(df.columns) > 2:
++                        col_script = df.columns[2]
++                        
++                    if col_niche:
++                        df[col_niche] = df[col_niche].ffill()
++                        
++                    if col_product:
++                        df_products = df[df[col_product].notna()]
++                        list_products = df_products[col_product].astype(str).str.strip().tolist()
++                        
++                    if col_niche and df_products is not None:
++                        list_niches = df_products[col_niche].astype(str).str.strip().tolist()
++                        
++                    if col_script:
++                        list_scripts = df[col_script].dropna().astype(str).str.strip().tolist()
++                        
++                    st.success(f"ÄĂ£ Ä‘á»c file Excel! CĂ³ {len(list_products)} sáº£n pháº©m, {len(list_scripts)} ká»‹ch báº£n máº«u.")
++                    with st.expander("Xem trÆ°á»›c dá»¯ liá»‡u Excel"):
++                        st.dataframe(df.head(10))
++                except Exception as e:
++                    st.error(f"Lá»—i khi Ä‘á»c file Excel: {e}")
++            
++            num_excel_videos = st.number_input(
++                "Sá»‘ lÆ°á»£ng video cáº§n táº¡o",
++                min_value=1,
++                max_value=100,
++                value=min(len(list_products), 5) if list_products else 3,
++                step=1,
++                key="num_excel_videos_input"
++            )
++            
++            start_excel_button = st.button(
++                "đŸ€ Báº¯t Ä‘áº§u táº¡o tá»± Ä‘á»™ng tá»« Excel",
++                use_container_width=True,
++                type="primary",
++                key="start_excel_button"
++            )
++            
++            excel_run_container = st.container()
+ 
+ with middle_panel:
+     with st.container(border=True):
+@@ -863,6 +946,7 @@ with middle_panel:
+                 tr("Upload Local Files"),
+                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
+                 accept_multiple_files=True,
++                key="uploaded_files_uploader",
+             )
+ 
+         local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
+@@ -1609,4 +1693,162 @@ if start_button:
+     logger.info(tr("Video Generation Completed"))
+     scroll_to_bottom()
+ 
++if start_excel_button:
++    with excel_run_container:
++        if not excel_file or not list_products:
++            st.error("Vui lĂ²ng táº£i lĂªn file Excel há»£p lá»‡ cĂ³ chá»©a danh sĂ¡ch sáº£n pháº©m trÆ°á»›c.")
++        else:
++            # Validate keys/providers
++            config.save_config()
++            
++            source_list = params.video_source if isinstance(params.video_source, list) else [params.video_source]
++            if not source_list:
++                st.error(tr("Please Select a Valid Video Source"))
++                st.stop()
++            if "pexels" in source_list and not config.app.get("pexels_api_keys", ""):
++                st.error(tr("Please Enter the Pexels API Key"))
++                st.stop()
++            if "pixabay" in source_list and not config.app.get("pixabay_api_keys", ""):
++                st.error(tr("Please Enter the Pixabay API Key"))
++                st.stop()
++            if "coverr" in source_list and not config.app.get("coverr_api_keys", ""):
++                st.error(tr("Please Enter the Coverr API Key"))
++                st.stop()
++                
++            # Let's perform the loop
++            st.toast("Báº¯t Ä‘áº§u quy trĂ¬nh tá»± Ä‘á»™ng tá»« Excel...")
++            
++            # Store generated videos to show at the end
++            all_generated_videos = []
++            
++            for idx in range(num_excel_videos):
++                # Determine loai_sp and ten_sp sequentially (with wrap around)
++                prod_idx = idx % len(list_products)
++                ten_sp = list_products[prod_idx]
++                loai_sp = list_niches[prod_idx] if prod_idx < len(list_niches) else ""
++                
++                # Determine kich_ban_mau randomly
++                kich_ban_mau = random.choice(list_scripts) if list_scripts else ""
++                
++                # Determine subject and prompt overrides
++                current_subject = params.video_subject if params.video_subject else f"{loai_sp} - {ten_sp}"
++                current_script_prompt = params.video_script_prompt if params.video_script_prompt else kich_ban_mau
++                current_terms = params.video_terms
++                
++                # Display sub-task header
++                st.markdown(f"---")
++                st.markdown(f"#### đŸ¬ Video {idx + 1}/{num_excel_videos}: **{current_subject}**")
++                
++                # Create unique task ID
++                task_id = str(uuid4())
++                
++                # Clone/prepare params for this task
++                run_params = VideoParams(**params.model_dump())
++                run_params.video_subject = current_subject
++                run_params.video_script_prompt = current_script_prompt
++                run_params.video_script = ""
++                run_params.video_terms = current_terms
++                
++                # Process uploaded audio/materials specifically for this task_id
++                _uploaded_audio_file = st.session_state.get("custom_audio_file_uploader")
++                if _uploaded_audio_file:
++                    task_dir = utils.task_dir(task_id)
++                    _, audio_ext = os.path.splitext(os.path.basename(_uploaded_audio_file.name))
++                    audio_ext = audio_ext.lower() or ".mp3"
++                    custom_audio_path = os.path.join(task_dir, f"custom-audio{audio_ext}")
++                    with open(custom_audio_path, "wb") as f:
++                        f.write(_uploaded_audio_file.getbuffer())
++                    run_params.custom_audio_file = custom_audio_path
++
++                _local_option_files = st.session_state.get("local_option_files_uploader")
++                if _local_option_files:
++                    local_videos_dir = utils.storage_dir("local_videos", create=True)
++                    run_params.local_materials = []
++                    for file in _local_option_files:
++                        file_path = os.path.join(local_videos_dir, f"opt_{file.file_id}_{file.name}")
++                        if not os.path.exists(file_path):
++                            with open(file_path, "wb") as f:
++                                f.write(file.getbuffer())
++                        m = MaterialInfo()
++                        m.provider = "local"
++                        m.url = file_path
++                        run_params.local_materials.append(m)
++
++                _uploaded_files = st.session_state.get("uploaded_files_uploader")
++                if _uploaded_files:
++                    local_videos_dir = utils.storage_dir("local_videos", create=True)
++                    run_params.video_materials = []
++                    persisted_local_materials = []
++                    for file in _uploaded_files:
++                        file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
++                        with open(file_path, "wb") as f:
++                            f.write(file.getbuffer())
++                            m = MaterialInfo()
++                            m.provider = "local"
++                            m.url = file_path
++                            run_params.video_materials.append(m)
++                            persisted_local_materials.append(
++                                {
++                                    "provider": m.provider,
++                                    "url": m.url,
++                                    "duration": m.duration,
++                                }
++                            )
++                    st.session_state["local_video_materials"] = persisted_local_materials
++                elif "local" in source_list and st.session_state["local_video_materials"]:
++                    run_params.video_materials = []
++                    for material in st.session_state["local_video_materials"]:
++                        m = MaterialInfo()
++                        m.provider = material.get("provider", "local")
++                        m.url = material.get("url", "")
++                        m.duration = material.get("duration", 0)
++                        if m.url:
++                            run_params.video_materials.append(m)
++                
++                # Output containers
++                progress_container = st.empty()
++                log_expander = st.expander(f"Nháº­t kĂ½ há»‡ thá»‘ng - Video {idx + 1}", expanded=False)
++                log_container = log_expander.empty()
++                log_records = []
++
++                def log_received_excel(msg):
++                    task = sm.state.get_task(task_id)
++                    if task:
++                        p = task.get("progress", 0)
++                        p = max(0, min(100, int(p)))
++                        progress_container.progress(p / 100.0, text=f"Tiáº¿n trĂ¬nh: {p}%")
++                    
++                    log_records.append(msg)
++                    with log_container:
++                        st.code("\n".join(log_records))
++
++                logger_id = logger.add(log_received_excel)
++                
++                try:
++                    logger.info(f"Báº¯t Ä‘áº§u táº¡o video {idx + 1}: Subject: {current_subject}")
++                    result = tm.start(task_id=task_id, params=run_params)
++                    
++                    if not result or "videos" not in result:
++                        st.error(f"Táº¡o Video tháº¥t báº¡i: {current_subject}")
++                        logger.error(f"Táº¡o Video tháº¥t báº¡i: {current_subject}")
++                    else:
++                        video_files = result.get("videos", [])
++                        progress_container.progress(1.0, text="Tiáº¿n trĂ¬nh: 100% - HoĂ n thĂ nh!")
++                        st.success(f"Táº¡o Video thĂ nh cĂ´ng: {current_subject}")
++                        all_generated_videos.extend(video_files)
++                        
++                        # Render video immediately
++                        player_cols = st.columns(len(video_files) * 2 + 1)
++                        for i, url in enumerate(video_files):
++                            player_cols[i * 2 + 1].video(url)
++                        open_task_folder(task_id)
++                except Exception as e:
++                    st.error(f"Lá»—i há»‡ thá»‘ng khi táº¡o Video: {e}")
++                    logger.exception(e)
++                finally:
++                    logger.remove(logger_id)
++                    
++            st.balloons()
++            st.success(f"đŸ‰ HoĂ n thĂ nh táº¡o hĂ ng loáº¡t {num_excel_videos} video!")
++
+ config.save_config()
