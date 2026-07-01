@@ -48,6 +48,31 @@ pixabay_api_keys = []
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 coverr_api_keys = []
 
+# TwelveLabs API Key (optional) — https://twelvelabs.io
+# TwelveLabs (可选) 视频理解 / 多模态嵌入集成。
+# Enables two opt-in features:
+#   * Marengo (multimodal embeddings) semantically reorders the auto-generated
+#     search terms by relevance to your video subject, so the most on-topic
+#     B-roll is downloaded first when the timeline budget is tight.
+#   * Pegasus (video understanding) can QA / describe a clip from its URL.
+# Leave empty to keep MoneyPrinterTurbo's behavior completely unchanged.
+# Configure a TwelveLabs API key from the TwelveLabs dashboard (https://twelvelabs.io) and install the
+# optional dependency with `uv sync --extra twelvelabs`.
+# Register at https://playground.twelvelabs.io to get your API key.
+# You can use multiple keys to avoid rate limits.
+# For example: twelvelabs_api_keys = ["tlk_123adsf4567","tlk_abd1321cd13ef"]
+# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
+twelvelabs_api_keys = []
+
+# Reorder search terms by Marengo relevance before downloading footage.
+# Requires twelvelabs_api_keys above. Ignored in "match materials to script"
+# mode, where term order is intentionally the script's narrative order.
+twelvelabs_rerank_terms = false
+
+# Optional model overrides (defaults shown).
+# twelvelabs_marengo_model = "marengo3.0"
+# twelvelabs_pegasus_model = "pegasus1.5"
+
 # 支持的提供商 (Supported providers):
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)
@@ -63,6 +88,7 @@ coverr_api_keys = []
 #   cloudflare
 #   minimax
 #   evolink    (OpenAI-compatible multi-model AI gateway)
+#   volcengine (VolcEngine Ark OpenAI-compatible API)
 #   mimo       (Xiaomi MiMo)
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
@@ -188,6 +214,14 @@ minimax_model_name = "MiniMax-M3"
 evolink_api_key = ""
 evolink_base_url = "https://direct.evolink.ai/v1"
 evolink_model_name = "gpt-5.5"
+
+########## VolcEngine Ark API Key
+# VolcEngine Ark provides an OpenAI-compatible Chat Completions API.
+# Create an API key in the VolcEngine Ark console and use a model ID that is
+# enabled for your account.
+volcengine_api_key = ""
+volcengine_base_url = "https://ark.cn-beijing.volces.com/api/v3"
+volcengine_model_name = "doubao-seed-2-1-turbo-260628"
 
 ########## Xiaomi MiMo API Key
 # Xiaomi MiMo API is OpenAI-compatible.
@@ -404,3 +438,20 @@ upload_post_auto_upload = false
 
 # YouTube Shorts privacy status (options: "public", "unlisted", "private")
 upload_post_youtube_privacy_status = "public"
+
+# Chatterbox TTS (self-hosted, OpenAI-compatible) ##########################
+# Chatterbox (https://github.com/resemble-ai/chatterbox, MIT) is an open-source,
+# locally hosted TTS model with zero-shot voice cloning — a self-hostable
+# alternative to ElevenLabs. Run a server that exposes an OpenAI-compatible
+# endpoint at POST {base_url}/audio/speech (e.g. devnen/Chatterbox-TTS-Server
+# or travisvn/chatterbox-tts-api), then set base_url below. In the WebUI pick
+# "Chatterbox TTS" as the TTS server, or via the API pass a voice_name like
+# "chatterbox:<voice>". Subtitles use the full-text fallback (no word-level
+# timestamps); set subtitle_provider = "whisper" for tighter sync.
+[chatterbox]
+# Defaults target travisvn/chatterbox-tts-api running locally on port 4123.
+base_url = "http://127.0.0.1:4123/v1"
+api_key = ""
+model_id = "chatterbox"
+# Voices exposed by your server; shown in the WebUI dropdown as chatterbox:<name>
+voices = ["default-Female"]
