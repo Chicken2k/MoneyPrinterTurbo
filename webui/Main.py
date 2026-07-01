@@ -155,6 +155,11 @@ if "vibe_combo_selectbox" not in st.session_state:
     st.session_state["vibe_combo_selectbox"] = "Ngẫu nhiên / Random Vibe"
 if "excel_vibe_combo_selectbox" not in st.session_state:
     st.session_state["excel_vibe_combo_selectbox"] = "Ngẫu nhiên / Random Vibe"
+if "excel_random_vibe_pool" not in st.session_state:
+    st.session_state["excel_random_vibe_pool"] = [
+        k for k in VIBE_COMBOS.keys()
+        if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]
+    ]
 if "video_terms" not in st.session_state:
     valid_keys = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]]
     selected_key = random.choice(valid_keys)
@@ -1243,6 +1248,21 @@ with left_panel:
                 key="excel_video_keywords_input",
                 help="Các từ khóa ngăn cách bởi dấu phẩy. Nếu nhập, AI sẽ ưu tiên lấy giá trị này để tìm video mà không cần tự phân tích từ kịch bản."
             )
+
+            # If the user selects "Ngẫu nhiên / Random Vibe"
+            show_random_selection = False
+            keywords_val = st.session_state.get("excel_video_keywords_input", "").strip()
+            if "ngẫu nhiên" in keywords_val.lower() or "random" in keywords_val.lower():
+                show_random_selection = True
+
+            if show_random_selection:
+                all_valid_combos = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]]
+                st.multiselect(
+                    "Chọn các Vibes muốn ngẫu nhiên (Vibe Pool for Random)",
+                    options=all_valid_combos,
+                    key="excel_random_vibe_pool",
+                    help="Khi tạo video ngẫu nhiên từ Excel, hệ thống sẽ chỉ chọn ngẫu nhiên từ danh sách các bộ Vibe bạn chọn ở đây."
+                )
             
             num_excel_videos = st.number_input(
                 "Số lượng video cần tạo",
@@ -2566,7 +2586,9 @@ if st.session_state.get("run_excel_generation", False):
                 if excel_video_keywords_choice:
                     if "ngẫu nhiên" in excel_video_keywords_choice.lower() or "random" in excel_video_keywords_choice.lower():
                         import random
-                        valid_keys = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]]
+                        valid_keys = st.session_state.get("excel_random_vibe_pool", [])
+                        if not valid_keys:
+                            valid_keys = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]]
                         selected_key = random.choice(valid_keys)
                         current_terms = VIBE_COMBOS[selected_key]
                     else:
