@@ -309,3 +309,31 @@ def load_locales(i18n_dir):
 
 def parse_extension(filename):
     return Path(filename).suffix.lower().lstrip('.')
+
+
+def parse_clip_duration(val) -> tuple[int, int]:
+    """
+    Parse clip duration that can be a single int, a list/tuple of [min, max], or a string 'min-max'.
+    Returns a tuple (min_val, max_val).
+    """
+    if isinstance(val, (list, tuple)) and len(val) >= 2:
+        return int(val[0]), int(val[1])
+    if isinstance(val, int):
+        return val, val
+    if isinstance(val, float):
+        v = int(val)
+        return v, v
+    if isinstance(val, str):
+        val = val.strip()
+        if "-" in val:
+            try:
+                parts = val.split("-")
+                return int(parts[0]), int(parts[1])
+            except Exception:
+                pass
+        try:
+            v = int(val)
+            return v, v
+        except Exception:
+            pass
+    return 6, 10  # fallback default

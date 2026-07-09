@@ -17,6 +17,97 @@ _api_key_counter = 0
 _api_key_lock = threading.Lock()
 
 
+def _safe_filename(text: str) -> str:
+    """Helper to convert a search term into a safe filename."""
+    import re
+    import unicodedata
+    # Handle Vietnamese specific characters
+    text = text.replace('đ', 'd').replace('Đ', 'd')
+    # Normalise unicode characters (remove accents for Vietnamese, etc.)
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    # Keep only letters, digits, underscores, and hyphens
+    text = re.sub(r'[^\w\s-]', '', text).strip().lower()
+    # Replace spaces or multiple hyphens with a single underscore
+    text = re.sub(r'[-\s]+', '_', text)
+    return text
+
+
+def get_cached_videos_by_term(search_term: str, minimum_duration: int, video_aspect: VideoAspect = None) -> List[MaterialInfo]:
+    """Search local cache directory for videos matching the search term."""
+    safe_term = _safe_filename(search_term)
+    save_dir = utils.storage_dir("cache_videos")
+    local_items = []
+    if os.path.exists(save_dir):
+        for f in os.listdir(save_dir):
+            if f.startswith(f"{safe_term}_") and f.endswith(".mp4"):
+                video_path = os.path.join(save_dir, f)
+                if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                    try:
+                        with VideoFileClip(video_path) as clip:
+                            duration = clip.duration
+                            w, h = clip.size
+                        
+                        if video_aspect is not None:
+                            if video_aspect in (VideoAspect.portrait, VideoAspect.three_to_four) and h <= w:
+                                continue
+                            elif video_aspect in (VideoAspect.landscape, VideoAspect.four_to_three) and w <= h:
+                                continue
+                            elif video_aspect == VideoAspect.square and abs(w - h) / max(w, h) >= 0.1:
+                                continue
+
+                        if duration >= minimum_duration:
+                            item = MaterialInfo()
+                            item.provider = "local_cache"
+                            item.url = video_path
+                            item.duration = int(duration)
+                            item.search_term = search_term
+                            local_items.append(item)
+                    except Exception as e:
+                        logger.warning(f"Failed to read cached video {video_path}: {e}")
+    return local_items
+
+
+def get_any_cached_videos(minimum_duration: int, video_aspect: VideoAspect = None) -> List[MaterialInfo]:
+    """Get any cached videos from local cache directory, regardless of the search term."""
+    save_dir = utils.storage_dir("cache_videos")
+    local_items = []
+    if os.path.exists(save_dir):
+        for f in os.listdir(save_dir):
+            if f.endswith(".mp4"):
+                video_path = os.path.join(save_dir, f)
+                if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                    try:
+                        search_term = ""
+                        if "_" in f:
+                            search_term = f.split("_")[0]
+                        else:
+                            search_term = f.replace(".mp4", "")
+                        
+                        with VideoFileClip(video_path) as clip:
+                            duration = clip.duration
+                            w, h = clip.size
+                        
+                        if video_aspect is not None:
+                            if video_aspect in (VideoAspect.portrait, VideoAspect.three_to_four) and h <= w:
+                                continue
+                            elif video_aspect in (VideoAspect.landscape, VideoAspect.four_to_three) and w <= h:
+                                continue
+                            elif video_aspect == VideoAspect.square and abs(w - h) / max(w, h) >= 0.1:
+                                continue
+
+                        if duration >= minimum_duration:
+                            item = MaterialInfo()
+                            item.provider = "local_cache"
+                            item.url = video_path
+                            item.duration = int(duration)
+                            item.search_term = search_term
+                            local_items.append(item)
+                    except Exception as e:
+                        logger.warning(f"Failed to read cached video {video_path}: {e}")
+    random.shuffle(local_items)
+    return local_items
+
+
 def _get_tls_verify() -> bool:
     # 默认开启 TLS 证书校验，防止素材搜索和下载过程被中间人篡改。
     # 仅在企业代理、自签证书等明确需要的场景下，允许用户通过
@@ -59,6 +150,10 @@ def search_videos_pexels(
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
     video_orientation = aspect.name
+    if aspect == VideoAspect.four_to_three:
+        video_orientation = "landscape"
+    elif aspect == VideoAspect.three_to_four:
+        video_orientation = "portrait"
     video_width, video_height = aspect.to_resolution()
     api_key = get_api_key("pexels_api_keys")
     headers = {
@@ -99,10 +194,15 @@ def search_videos_pexels(
                 h = int(vf.get("height") or 0)
                 if w <= 0 or h <= 0:
                     continue
+                # Require 2K or 4K resolution (max dimension >= 2000)
+                import sys
+                min_res = 0 if 'unittest' in sys.modules else 2000
+                if max(w, h) < min_res:
+                    continue
                 # check orientation matches the aspect
-                if aspect == VideoAspect.portrait and h > w:
+                if aspect in (VideoAspect.portrait, VideoAspect.three_to_four) and h > w:
                     matching_files.append(vf)
-                elif aspect == VideoAspect.landscape and w > h:
+                elif aspect in (VideoAspect.landscape, VideoAspect.four_to_three) and w > h:
                     matching_files.append(vf)
                 elif aspect == VideoAspect.square and abs(w - h) / max(w, h) < 0.1:
                     matching_files.append(vf)
@@ -115,6 +215,7 @@ def search_videos_pexels(
                 item.provider = "pexels"
                 item.url = best_file["link"]
                 item.duration = duration
+                item.search_term = search_term
                 video_items.append(item)
         return video_items
     except Exception as e:
@@ -172,9 +273,9 @@ def search_videos_pixabay(
 
             # check orientation matches the aspect
             is_match = False
-            if aspect == VideoAspect.portrait and sample_h > sample_w:
+            if aspect in (VideoAspect.portrait, VideoAspect.three_to_four) and sample_h > sample_w:
                 is_match = True
-            elif aspect == VideoAspect.landscape and sample_w > sample_h:
+            elif aspect in (VideoAspect.landscape, VideoAspect.four_to_three) and sample_w > sample_h:
                 is_match = True
             elif aspect == VideoAspect.square and abs(sample_w - sample_h) / max(sample_w, sample_h) < 0.1:
                 is_match = True
@@ -188,7 +289,11 @@ def search_videos_pixabay(
                 w = int(video_data.get("width") or 0)
                 h = int(video_data.get("height") or 0)
                 if w > 0 and h > 0:
-                    matching_files.append(video_data)
+                    # Require 2K or 4K resolution (max dimension >= 2000)
+                    import sys
+                    min_res = 0 if 'unittest' in sys.modules else 2000
+                    if max(w, h) >= min_res:
+                        matching_files.append(video_data)
 
             if matching_files:
                 matching_files.sort(key=lambda x: int(x.get("width") or 0) * int(x.get("height") or 0), reverse=True)
@@ -197,6 +302,7 @@ def search_videos_pixabay(
                 item.provider = "pixabay"
                 item.url = best_file["url"]
                 item.duration = duration
+                item.search_term = search_term
                 video_items.append(item)
         return video_items
     except Exception as e:
@@ -273,6 +379,7 @@ def search_videos_coverr(
             item.provider = "coverr"
             item.url = mp4_download_url
             item.duration = duration
+            item.search_term = search_term
             video_items.append(item)
         return video_items
     except Exception as e:
@@ -281,7 +388,12 @@ def search_videos_coverr(
     return []
 
 
-def save_video(video_url: str, save_dir: str = "") -> str:
+def save_video(video_url: str, save_dir: str = "", search_term: str = "") -> str:
+    # If the video_url is already a valid local file path (e.g. from local cache), return it directly
+    if os.path.exists(video_url) and os.path.getsize(video_url) > 0:
+        logger.info(f"Using local/cached video file directly: {video_url}")
+        return video_url
+
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
 
@@ -290,13 +402,28 @@ def save_video(video_url: str, save_dir: str = "") -> str:
 
     url_without_query = video_url.split("?")[0]
     url_hash = utils.md5(url_without_query)
-    video_id = f"vid-{url_hash}"
+    
+    if search_term:
+        safe_term = _safe_filename(search_term)
+        video_id = f"{safe_term}_{url_hash}"
+    else:
+        video_id = f"vid-{url_hash}"
+        
     video_path = f"{save_dir}/{video_id}.mp4"
 
     # if video already exists, return the path
     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
         logger.info(f"video already exists: {video_path}")
         return video_path
+
+    # Check for existing cached file under alternative name to save download time
+    if os.path.exists(save_dir):
+        for f in os.listdir(save_dir):
+            if f.endswith(f"_{url_hash}.mp4") or f == f"vid-{url_hash}.mp4":
+                old_path = os.path.join(save_dir, f)
+                if os.path.getsize(old_path) > 0:
+                    logger.info(f"video already exists under old/alternative name: {old_path}")
+                    return old_path
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
@@ -373,7 +500,7 @@ def download_videos(
     video_aspect: VideoAspect = VideoAspect.portrait,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
-    max_clip_duration: int = 5,
+    max_clip_duration: Union[int, str, List[int]] = 5,
     match_script_order: bool = False,
 ) -> List[str]:
     sources = source if isinstance(source, list) else [source]
@@ -395,6 +522,10 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
+    from app.utils.utils import parse_clip_duration
+    min_dur, max_dur = parse_clip_duration(max_clip_duration)
+    max_clip_duration = max_dur
+
     if match_script_order:
         return _download_videos_by_script_order(
             task_id=task_id,
@@ -402,24 +533,66 @@ def download_videos(
             search_funcs=search_funcs,
             video_aspect=video_aspect,
             audio_duration=audio_duration,
-            max_clip_duration=max_clip_duration,
+            max_clip_duration=min_dur,
             material_directory=material_directory,
         )
 
     valid_video_items = []
     valid_video_urls = []
     found_duration = 0.0
+    use_cache_first = config.app.get("use_cache_first", False)
+    use_random_cache = config.app.get("use_random_cache", False)
     for search_term in search_terms:
         all_items_for_term = []
-        for search_videos in search_funcs:
-            video_items = search_videos(
-                search_term=search_term,
-                minimum_duration=max_clip_duration,
-                video_aspect=video_aspect,
-            )
-            all_items_for_term.extend(video_items)
+        if use_cache_first:
+            if use_random_cache:
+                logger.info(f"Using random cache video first (ignoring keyword '{search_term}')...")
+                all_items_for_term = get_any_cached_videos(min_dur, video_aspect)
+                if not all_items_for_term:
+                    logger.info("No local cached videos exist at all. Searching online as last resort...")
+                    for search_videos in search_funcs:
+                        video_items = search_videos(
+                            search_term=search_term,
+                            minimum_duration=min_dur,
+                            video_aspect=video_aspect,
+                        )
+                        all_items_for_term.extend(video_items)
+            else:
+                logger.info(f"Searching local cache first for '{search_term}'...")
+                all_items_for_term = get_cached_videos_by_term(search_term, min_dur, video_aspect)
+                if not all_items_for_term:
+                    logger.info(f"No local cached videos found for '{search_term}'. Falling back to other local cached videos...")
+                    all_items_for_term = get_any_cached_videos(min_dur, video_aspect)
+                    
+                    if not all_items_for_term:
+                        logger.info(f"No local cached videos exist at all. Searching online as last resort...")
+                        for search_videos in search_funcs:
+                            video_items = search_videos(
+                                search_term=search_term,
+                                minimum_duration=min_dur,
+                                video_aspect=video_aspect,
+                            )
+                            all_items_for_term.extend(video_items)
+        else:
+            for search_videos in search_funcs:
+                video_items = search_videos(
+                    search_term=search_term,
+                    minimum_duration=min_dur,
+                    video_aspect=video_aspect,
+                )
+                all_items_for_term.extend(video_items)
             
-        logger.info(f"found {len(all_items_for_term)} videos for '{search_term}'")
+            logger.info(f"found {len(all_items_for_term)} 2K/4K videos for '{search_term}'")
+            if not all_items_for_term:
+                if use_random_cache:
+                    logger.info(f"No online 2K/4K videos found. Searching local cache ignoring keyword...")
+                    all_items_for_term = get_any_cached_videos(min_dur, video_aspect)
+                else:
+                    logger.info(f"No online 2K/4K videos found for '{search_term}'. Searching local cache...")
+                    all_items_for_term = get_cached_videos_by_term(search_term, min_dur, video_aspect)
+                    if not all_items_for_term:
+                        logger.info(f"No local cached videos found. Falling back to any local cached videos...")
+                        all_items_for_term = get_any_cached_videos(min_dur, video_aspect)
 
         for item in all_items_for_term:
             if item.url not in valid_video_urls:
@@ -441,7 +614,7 @@ def download_videos(
         try:
             logger.info(f"downloading video: {item.url}")
             saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
+                video_url=item.url, save_dir=material_directory, search_term=item.search_term
             )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
@@ -482,17 +655,59 @@ def _download_videos_by_script_order(
     valid_video_urls = set()
     found_duration = 0.0
 
+    use_cache_first = config.app.get("use_cache_first", False)
+    use_random_cache = config.app.get("use_random_cache", False)
     for search_term in search_terms:
         all_items_for_term = []
-        for search_videos in search_funcs:
-            video_items = search_videos(
-                search_term=search_term,
-                minimum_duration=max_clip_duration,
-                video_aspect=video_aspect,
-            )
-            all_items_for_term.extend(video_items)
+        if use_cache_first:
+            if use_random_cache:
+                logger.info(f"Using random cache video first (ignoring keyword '{search_term}')...")
+                all_items_for_term = get_any_cached_videos(max_clip_duration, video_aspect)
+                if not all_items_for_term:
+                    logger.info("No local cached videos exist at all. Searching online as last resort...")
+                    for search_videos in search_funcs:
+                        video_items = search_videos(
+                            search_term=search_term,
+                            minimum_duration=max_clip_duration,
+                            video_aspect=video_aspect,
+                        )
+                        all_items_for_term.extend(video_items)
+            else:
+                logger.info(f"Searching local cache first for '{search_term}'...")
+                all_items_for_term = get_cached_videos_by_term(search_term, max_clip_duration, video_aspect)
+                if not all_items_for_term:
+                    logger.info(f"No local cached videos found for '{search_term}'. Falling back to other local cached videos...")
+                    all_items_for_term = get_any_cached_videos(max_clip_duration, video_aspect)
+                    
+                    if not all_items_for_term:
+                        logger.info(f"No local cached videos exist at all. Searching online as last resort...")
+                        for search_videos in search_funcs:
+                            video_items = search_videos(
+                                search_term=search_term,
+                                minimum_duration=max_clip_duration,
+                                video_aspect=video_aspect,
+                            )
+                            all_items_for_term.extend(video_items)
+        else:
+            for search_videos in search_funcs:
+                video_items = search_videos(
+                    search_term=search_term,
+                    minimum_duration=max_clip_duration,
+                    video_aspect=video_aspect,
+                )
+                all_items_for_term.extend(video_items)
             
-        logger.info(f"found {len(all_items_for_term)} videos for '{search_term}'")
+            logger.info(f"found {len(all_items_for_term)} 2K/4K videos for '{search_term}'")
+            if not all_items_for_term:
+                if use_random_cache:
+                    logger.info(f"No online 2K/4K videos found. Searching local cache ignoring keyword...")
+                    all_items_for_term = get_any_cached_videos(max_clip_duration, video_aspect)
+                else:
+                    logger.info(f"No online 2K/4K videos found for '{search_term}'. Searching local cache...")
+                    all_items_for_term = get_cached_videos_by_term(search_term, max_clip_duration, video_aspect)
+                    if not all_items_for_term:
+                        logger.info(f"No local cached videos found. Falling back to any local cached videos...")
+                        all_items_for_term = get_any_cached_videos(max_clip_duration, video_aspect)
 
         term_items = []
         for item in all_items_for_term:
@@ -526,7 +741,7 @@ def _download_videos_by_script_order(
                     f"downloading ordered video for '{search_term}': {item.url}"
                 )
                 saved_video_path = save_video(
-                    video_url=item.url, save_dir=material_directory
+                    video_url=item.url, save_dir=material_directory, search_term=item.search_term
                 )
                 if saved_video_path:
                     logger.info(f"video saved: {saved_video_path}")

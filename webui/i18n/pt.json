@@ -141,6 +141,21 @@
     "Coverr API Key added successfully": "Chave de API do Coverr adicionada com sucesso",
     "Select Coverr API Key to delete": "Selecione a chave de API do Coverr para excluir",
     "Delete Selected Coverr API Key": "Excluir chave de API do Coverr selecionada",
-    "Coverr API Key deleted successfully": "Chave de API do Coverr excluída com sucesso"
+    "Coverr API Key deleted successfully": "Chave de API do Coverr excluída com sucesso",
+    "Single (Chữ đơn)": "Palavra única (Single)",
+    "Horizontal Position": "Posição horizontal",
+    "Left": "Esquerda",
+    "Right": "Direita",
+    "Use Random Cached Videos": "Usar vídeos aleatórios do cache (ignorar palavras-chave)",
+    "Use Random Cached Videos Help": "Se ativado, o sistema selecionará vídeos aleatórios do cache local, ignorando as palavras-chave de pesquisa.",
+    "Video Filter": "Filtro de Vídeo",
+    "No Filter": "Sem Filtro",
+    "Black & White": "Preto e Branco",
+    "Vintage": "Vintage",
+    "Teal & Orange": "Teal e Laranja",
+    "Cyberpunk": "Cyberpunk",
+    "Warm": "Quente",
+    "Cool": "Frio",
+    "Invert Colors": "Inverter Cores"
   }
 }

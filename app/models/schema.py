@@ -33,6 +33,8 @@ class VideoAspect(str, Enum):
     landscape = "16:9"
     portrait = "9:16"
     square = "1:1"
+    four_to_three = "4:3"
+    three_to_four = "3:4"
 
     def to_resolution(self):
         if self == VideoAspect.landscape:
@@ -41,6 +43,10 @@ class VideoAspect(str, Enum):
             return 1080, 1920
         elif self == VideoAspect.square:
             return 1080, 1080
+        elif self == VideoAspect.four_to_three:
+            return 1440, 1080
+        elif self == VideoAspect.three_to_four:
+            return 1080, 1440
         raise ValueError(f"unsupported video aspect: {self}")
 
 
@@ -53,6 +59,7 @@ class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
+    search_term: str = ""
 
 
 class VideoParams(BaseModel):
@@ -72,11 +79,13 @@ class VideoParams(BaseModel):
 
     video_subject: str
     video_script: str = ""  # Script used to generate the video
+    rewrite_formula: Optional[str] = ""  # Formula used to rewrite the script
     video_terms: Optional[str | list] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
+    material_aspect: Optional[VideoAspect] = None
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
-    video_clip_duration: Optional[int] = 5
+    video_clip_duration: Optional[Any] = "6-10"
     match_materials_to_script: bool = False
     video_count: Optional[int] = 1
 
@@ -90,20 +99,26 @@ class VideoParams(BaseModel):
     video_language: Optional[str] = ""  # auto detect
 
     voice_name: Optional[str] = ""
-    voice_volume: Optional[float] = 1.7
+    voice_volume: Optional[float] = 2.0
     voice_rate: Optional[float] = 1.0
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
-    bgm_volume: Optional[float] = 0.6
+    bgm_volume: Optional[float] = 0.7
 
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
+    subtitle_horizontal_position: Optional[str] = config.ui.get("subtitle_horizontal_position", "center")  # left, center, right
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
     rounded_subtitle_background: bool = False
     word_level_subtitle: bool = False
+    word_level_subtitle_type: Optional[str] = "sliding"
+    video_aspect_mode: Optional[str] = "fit"
+    video_filter: Optional[str] = "none"
+    fixed_subtitle_width: bool = False
+
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
@@ -119,11 +134,11 @@ class SubtitleRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
-    voice_volume: Optional[float] = 1.7
+    voice_volume: Optional[float] = 2.0
     voice_rate: Optional[float] = 1.2
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
-    bgm_volume: Optional[float] = 0.6
+    bgm_volume: Optional[float] = 0.7
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
@@ -140,11 +155,11 @@ class AudioRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
-    voice_volume: Optional[float] = 1.7
+    voice_volume: Optional[float] = 2.0
     voice_rate: Optional[float] = 1.2
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
-    bgm_volume: Optional[float] = 0.6
+    bgm_volume: Optional[float] = 0.7
     video_source: Optional[str] = "local"
 
 

@@ -156,6 +156,21 @@
     "Coverr API Key deleted successfully": "Coverr API Anahtarı başarıyla silindi",
     "Advanced Video Settings": "Gelişmiş Video Ayarları",
     "Video Encoder": "Video Kodlayıcı",
-    "Video Encoder Help": "Gelişmiş seçenek. libx264 en güvenli varsayılandır. Donanım kodlayıcı seçildiğinde mevcut FFmpeg, GPU veya sürücü bunu kullanamıyorsa uygulama libx264'ye geri döner."
+    "Video Encoder Help": "Gelişmiş seçenek. libx264 en güvenli varsayılandır. Donanım kodlayıcı seçildiğinde mevcut FFmpeg, GPU veya sürücü bunu kullanamıyorsa uygulama libx264'ye geri döner.",
+    "Single (Chữ đơn)": "Tek kelime (Single)",
+    "Horizontal Position": "Yatay konum",
+    "Left": "Sol",
+    "Right": "Sağ",
+    "Use Random Cached Videos": "Önbellekten Rastgele Videolar Kullan (Anahtar Kelimeleri Yoksay)",
+    "Use Random Cached Videos Help": "Etkinleştirilirse, sistem yerel önbellekten rastgele videolar seçer ve arama anahtar kelimelerini yoksayar.",
+    "Video Filter": "Video Filtresi",
+    "No Filter": "Filtresiz",
+    "Black & White": "Siyah Beyaz",
+    "Vintage": "Klasik (Vintage)",
+    "Teal & Orange": "Teal ve Turuncu",
+    "Cyberpunk": "Cyberpunk",
+    "Warm": "Sıcak",
+    "Cool": "Soğuk",
+    "Invert Colors": "Renkleri Ters Çevir"
   }
 }

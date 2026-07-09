@@ -12,6 +12,8 @@ class TestVideoAspect(unittest.TestCase):
         self.assertEqual(VideoAspect.landscape.to_resolution(), (1920, 1080))
         self.assertEqual(VideoAspect.portrait.to_resolution(), (1080, 1920))
         self.assertEqual(VideoAspect.square.to_resolution(), (1080, 1080))
+        self.assertEqual(VideoAspect.four_to_three.to_resolution(), (1440, 1080))
+        self.assertEqual(VideoAspect.three_to_four.to_resolution(), (1080, 1440))
 
     def test_to_resolution_rejects_unsupported_value(self):
         with self.assertRaises(ValueError):

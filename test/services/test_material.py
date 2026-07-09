@@ -18,6 +18,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
         self.original_proxy_config = dict(config.proxy)
+        config.app["use_cache_first"] = False
 
     def tearDown(self):
         config.app.clear()
@@ -73,7 +74,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
                         "duration": 8,
                         "videos": {
                             "large": {
-                                "width": 1920,
+                                "width": 1080,
+                                "height": 1920,
                                 "url": "https://example.com/video.mp4",
                             }
                         },
@@ -150,7 +152,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         def fake_search(search_term, minimum_duration, video_aspect):
             return search_results[search_term]
 
-        def fake_save_video(video_url, save_dir=""):
+        def fake_save_video(video_url, save_dir="", *args, **kwargs):
             downloaded_urls.append(video_url)
             return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
 
@@ -188,6 +190,7 @@ class TestCoverrProvider(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
         self.original_proxy_config = dict(config.proxy)
+        config.app["use_cache_first"] = False
 
     def tearDown(self):
         config.app.clear()

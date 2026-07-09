@@ -87,10 +87,10 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIn("- language: en", prompt)
 
     def test_generate_script_sends_custom_prompt_to_llm(self):
-        captured = {}
+        prompts = []
 
         def fake_generate_response(prompt):
-            captured["prompt"] = prompt
+            prompts.append(prompt)
             return "第一段。\n\n第二段。"
 
         with patch.object(llm, "_generate_response", side_effect=fake_generate_response):
@@ -102,8 +102,8 @@ class TestScriptPromptOptions(unittest.TestCase):
             )
 
         self.assertEqual(result, "第一段。\n\n第二段。")
-        self.assertIn("- number of paragraphs: 2", captured["prompt"])
-        self.assertIn("开头更有悬念", captured["prompt"])
+        self.assertTrue(any("- number of paragraphs: 2" in p for p in prompts))
+        self.assertTrue(any("开头更有悬念" in p for p in prompts))
 
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """

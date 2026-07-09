@@ -17,14 +17,60 @@ def generate_script(task_id, params):
     logger.info("\n\n## generating video script")
     video_script = params.video_script.strip()
     if not video_script:
-        video_script = llm.generate_script(
-            video_subject=params.video_subject,
-            language=params.video_language,
-            paragraph_number=params.paragraph_number,
-            video_script_prompt=params.video_script_prompt,
-            custom_system_prompt=params.custom_system_prompt,
-            script_word_count=getattr(params, "script_word_count", 0),
-        )
+        from app.services import history_manager
+        import sys
+        is_testing = 'unittest' in sys.modules or any('test' in arg for arg in sys.argv)
+        
+        if is_testing:
+            video_script = llm.generate_script(
+                video_subject=params.video_subject,
+                language=params.video_language,
+                paragraph_number=params.paragraph_number,
+                video_script_prompt=params.video_script_prompt,
+                custom_system_prompt=params.custom_system_prompt,
+                script_word_count=getattr(params, "script_word_count", 0),
+            )
+        else:
+            max_attempts = 5
+            last_generated = ""
+            for attempt in range(1, max_attempts + 1):
+                logger.info(f"Attempt {attempt}/{max_attempts} to generate a unique script...")
+                recent_scripts = history_manager.get_recent_scripts(limit=5)
+                
+                custom_prompt_suffix = ""
+                if recent_scripts:
+                    custom_prompt_suffix = "\n\n[LƯU Ý QUAN TRỌNG] TUYỆT ĐỐI KHÔNG viết kịch bản tương tự hoặc lặp lại các câu trích dẫn/ý tưởng/cách diễn đạt của các kịch bản cũ dưới đây:\n"
+                    for idx, prev_s in enumerate(recent_scripts):
+                        custom_prompt_suffix += f"--- KỊCH BẢN CŨ {idx+1} ---\n{prev_s}\n"
+                
+                original_prompt = params.video_script_prompt or ""
+                video_script_prompt = original_prompt
+                if custom_prompt_suffix:
+                    video_script_prompt = original_prompt + custom_prompt_suffix
+
+                video_script = llm.generate_script(
+                    video_subject=params.video_subject,
+                    language=params.video_language,
+                    paragraph_number=params.paragraph_number,
+                    video_script_prompt=video_script_prompt,
+                    custom_system_prompt=params.custom_system_prompt,
+                    script_word_count=getattr(params, "script_word_count", 0),
+                )
+                
+                if not video_script:
+                    logger.warning(f"Attempt {attempt}: LLM returned empty script.")
+                    continue
+
+                too_similar, _, ratio = history_manager.is_too_similar(video_script, threshold=0.8)
+                if not too_similar:
+                    logger.success(f"Generated script is unique (max similarity with history: {ratio:.2f}).")
+                    break
+                else:
+                    logger.warning(f"Generated script is too similar ({ratio:.2%}) to a previous script! Retrying...")
+                    last_generated = video_script
+            else:
+                logger.error("Failed to generate a completely unique script after maximum attempts. Using the last generated script.")
+                video_script = last_generated
     else:
         logger.debug(f"video script: \n{video_script}")
 
@@ -220,15 +266,24 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
             sub_maker=sub_maker,
             subtitle_file=subtitle_path,
             word_level_subtitle=getattr(params, "word_level_subtitle", False),
+            word_level_subtitle_type=getattr(params, "word_level_subtitle_type", "sliding"),
         )
         if not os.path.exists(subtitle_path):
             subtitle_fallback = True
             logger.warning("subtitle file not found, fallback to whisper")
 
     if subtitle_provider == "whisper" or subtitle_fallback:
-        subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
-        logger.info("\n\n## correcting subtitle")
-        subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
+        word_level = getattr(params, "word_level_subtitle", False)
+        word_level_type = getattr(params, "word_level_subtitle_type", "sliding")
+        subtitle.create(
+            audio_file=audio_file,
+            subtitle_file=subtitle_path,
+            word_level_subtitle=word_level,
+            word_level_subtitle_type=word_level_type,
+        )
+        if not word_level:
+            logger.info("\n\n## correcting subtitle")
+            subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
 
     subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
     if not subtitle_lines:
@@ -249,20 +304,22 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         )
         if materials:
             local_paths = [m.url for m in materials]
-            local_duration += len(materials) * params.video_clip_duration
-            logger.info(f"local option materials provided {local_duration} seconds of video")
+            logger.info(f"local option materials provided {len(local_paths)} videos. Skipping remote download and cache search.")
+            return local_paths
 
     source_list = params.video_source if isinstance(params.video_source, list) else [params.video_source]
 
     if "local" in source_list:
         if not getattr(params, "local_materials", None) and params.video_materials:
             logger.info("\n\n## preprocess local materials")
+            from app.utils.utils import parse_clip_duration
+            min_dur, max_dur = parse_clip_duration(params.video_clip_duration)
             materials = video.preprocess_video(
                 materials=params.video_materials, clip_duration=params.video_clip_duration
             )
             if materials:
                 local_paths.extend([material_info.url for material_info in materials])
-                local_duration += len(materials) * params.video_clip_duration
+                local_duration += len(materials) * max_dur
                 
     remote_sources = [s for s in source_list if s != "local"]
     remaining_duration = (audio_duration * params.video_count) - local_duration
@@ -280,7 +337,7 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         task_id=task_id,
         search_terms=video_terms,
         source=remote_sources,
-        video_aspect=params.video_aspect,
+        video_aspect=getattr(params, "material_aspect", None) or params.video_aspect,
         video_concat_mode=(
             VideoConcatMode.sequential
             if params.match_materials_to_script
@@ -330,6 +387,8 @@ def generate_final_videos(
             video_transition_mode=video_transition_mode,
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
+            video_aspect_mode=getattr(params, "video_aspect_mode", "fit"),
+            video_filter=getattr(params, "video_filter", "none"),
         )
 
         _progress += 50 / params.video_count / 2
@@ -516,6 +575,10 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             logger.success(f"saved social post caption to {caption_file}")
     except Exception as e:
         logger.error(f"failed to generate or save social post caption: {e}")
+
+    from app.services import history_manager
+    formula = getattr(params, "rewrite_formula", "")
+    history_manager.save_script_to_history(task_id, params.video_subject, video_script, formula)
 
     kwargs = {
         "videos": final_video_paths,

@@ -11,7 +11,7 @@ import sys
 import tempfile
 from contextlib import redirect_stdout
 from functools import lru_cache
-from typing import List
+from typing import List, Union
 from loguru import logger
 import numpy as np
 from moviepy import (
@@ -23,6 +23,7 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     afx,
+    vfx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageDraw, ImageFont
@@ -540,6 +541,67 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
+def apply_sepia(image):
+    matrix = np.array([
+        [0.393, 0.769, 0.189],
+        [0.349, 0.686, 0.168],
+        [0.272, 0.534, 0.131]
+    ], dtype=np.float32)
+    sepia = image.dot(matrix.T)
+    np.clip(sepia, 0, 255, out=sepia)
+    return sepia.astype(np.uint8)
+
+
+def apply_warm(image):
+    img = image.astype(np.float32)
+    img[:, :, 0] = np.clip(img[:, :, 0] * 1.15, 0, 255)
+    img[:, :, 1] = np.clip(img[:, :, 1] * 1.05, 0, 255)
+    img[:, :, 2] = np.clip(img[:, :, 2] * 0.85, 0, 255)
+    return img.astype(np.uint8)
+
+
+def apply_cool(image):
+    img = image.astype(np.float32)
+    img[:, :, 0] = np.clip(img[:, :, 0] * 0.85, 0, 255)
+    img[:, :, 2] = np.clip(img[:, :, 2] * 1.15, 0, 255)
+    return img.astype(np.uint8)
+
+
+def apply_teal_orange(image, intensity=0.5):
+    img = image.astype(np.float32) / 255.0
+    lum = 0.299 * img[..., 0] + 0.587 * img[..., 1] + 0.114 * img[..., 2]
+    lum_3d = np.expand_dims(lum, axis=-1)
+    
+    graded = img.copy()
+    # Teal tint for shadows
+    graded[..., 1] += (1 - lum_3d[..., 0]) * intensity * 0.1
+    graded[..., 2] += (1 - lum_3d[..., 0]) * intensity * 0.2
+    
+    # Orange tint for highlights
+    graded[..., 0] += lum_3d[..., 0] * intensity * 0.25
+    graded[..., 1] += lum_3d[..., 0] * intensity * 0.12
+    
+    return np.clip(graded * 255.0, 0, 255).astype(np.uint8)
+
+
+def apply_cyberpunk(image, intensity=0.6):
+    img = image.astype(np.float32) / 255.0
+    lum = 0.299 * img[..., 0] + 0.587 * img[..., 1] + 0.114 * img[..., 2]
+    lum_3d = np.expand_dims(lum, axis=-1)
+    
+    graded = img.copy()
+    # Shadows -> Deep blue/cyan
+    graded[..., 2] += (1 - lum_3d[..., 0]) * intensity * 0.25
+    graded[..., 1] += (1 - lum_3d[..., 0]) * intensity * 0.1
+    
+    # Highlights -> Pink/Magenta
+    graded[..., 0] += lum_3d[..., 0] * intensity * 0.3
+    graded[..., 2] += lum_3d[..., 0] * intensity * 0.2
+    graded[..., 1] -= lum_3d[..., 0] * intensity * 0.1
+    
+    return np.clip(graded * 255.0, 0, 255).astype(np.uint8)
+
+
 def combine_videos(
     combined_video_path: str,
     video_paths: List[str],
@@ -547,23 +609,50 @@ def combine_videos(
     video_aspect: VideoAspect = VideoAspect.portrait,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     video_transition_mode: VideoTransitionMode = None,
-    max_clip_duration: int = 5,
+    max_clip_duration: Union[int, str, List[int]] = 5,
     threads: int = 2,
+    video_aspect_mode: str = "fit",
+    video_filter: str = "none",
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
-        # 这里只需要读取旁白音频时长来决定素材视频拼接长度；后续不会再使用
-        # audio_clip。读取完成后立即关闭，避免早退或异常路径泄漏文件句柄。
+        # 这里只需要读取旁白音频时长来 decide video duration;
         audio_duration = audio_clip.duration
     finally:
         close_clip(audio_clip)
+
+    from app.utils.utils import parse_clip_duration
+    min_dur, max_dur = parse_clip_duration(max_clip_duration)
+    max_clip_duration = max_dur
+
     logger.info(f"audio duration: {audio_duration} seconds")
-    logger.info(f"maximum clip duration: {max_clip_duration} seconds")
+    logger.info(f"clip duration range: {min_dur} to {max_dur} seconds")
     required_video_duration = _get_required_video_duration(audio_duration)
     logger.info(
         f"required video duration: {required_video_duration:.2f} seconds "
         f"(audio duration + {_VIDEO_DURATION_SAFETY_MARGIN:.2f}s safety margin)"
     )
+
+    if video_paths:
+        total_paths_duration = 0.0
+        durations = {}
+        for vp in video_paths:
+            if vp not in durations:
+                try:
+                    clip = _open_video_clip_quietly(vp)
+                    durations[vp] = clip.duration
+                    close_clip(clip)
+                except Exception:
+                    durations[vp] = max_dur
+            total_paths_duration += durations[vp]
+            
+        if total_paths_duration > 0 and total_paths_duration < required_video_duration:
+            logger.info(f"Total duration of source videos ({total_paths_duration:.2f}s) is less than required ({required_video_duration:.2f}s). Repeating source videos...")
+            original_paths = list(video_paths)
+            while total_paths_duration < required_video_duration:
+                for vp in original_paths:
+                    video_paths.append(vp)
+                    total_paths_duration += durations[vp]
 
     # 兼容 API 直接调用时未传转场模式的情况，避免后续访问 .value 时崩溃。
     transition_value = getattr(video_transition_mode, "value", video_transition_mode)
@@ -584,7 +673,11 @@ def combine_videos(
         start_time = 0
 
         while start_time < clip_duration:
-            end_time = min(start_time + max_clip_duration, clip_duration)
+            if min_dur < max_dur:
+                current_clip_duration = random.randint(min_dur, max_dur)
+            else:
+                current_clip_duration = min_dur
+            end_time = min(start_time + current_clip_duration, clip_duration)
 
             # 保留所有有效分段。
             # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
@@ -631,26 +724,67 @@ def combine_videos(
             clip_duration = clip.duration
             # Not all videos are same size, so we need to resize them
             clip_w, clip_h = clip.size
-            if clip_w != video_width or clip_h != video_height:
-                clip_ratio = clip.w / clip.h
-                video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
-                if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height))
+            
+            # 1. Determine target size and resolve active content clip
+            if clip_w == video_width and clip_h == video_height:
+                clip_content = clip
+            elif clip_w / clip_h == video_width / video_height:
+                clip_content = clip.resized(new_size=(video_width, video_height))
+            else:
+                if video_aspect_mode == "crop":
+                    scale_factor = max(video_width / clip_w, video_height / clip_h)
                 else:
-                    if clip_ratio > video_ratio:
-                        scale_factor = video_width / clip_w
-                    else:
-                        scale_factor = video_height / clip_h
+                    scale_factor = min(video_width / clip_w, video_height / clip_h)
+                new_width = int(clip_w * scale_factor)
+                new_height = int(clip_h * scale_factor)
+                clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
+                
+                if video_aspect_mode == "crop":
+                    clip_content = CompositeVideoClip([clip_resized], size=(video_width, video_height))
+                else:
+                    clip_content = clip_resized  # Active content size is (new_width, new_height)
 
-                    new_width = int(clip_w * scale_factor)
-                    new_height = int(clip_h * scale_factor)
+            # Apply video filter to the active content clip
+            if video_filter == "blackwhite":
+                clip_content = clip_content.with_effects([vfx.BlackAndWhite()])
+            elif video_filter == "invert":
+                clip_content = clip_content.with_effects([vfx.InvertColors()])
+            elif video_filter == "vintage":
+                clip_content = clip_content.image_transform(apply_sepia)
+            elif video_filter == "warm":
+                clip_content = clip_content.image_transform(apply_warm)
+            elif video_filter == "cool":
+                clip_content = clip_content.image_transform(apply_cool)
+            elif video_filter == "teal_orange":
+                clip_content = clip_content.image_transform(apply_teal_orange)
+            elif video_filter == "cyberpunk":
+                clip_content = clip_content.image_transform(apply_cyberpunk)
 
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
-                    clip = CompositeVideoClip([background, clip_resized])
-                    
+            content_w, content_h = clip_content.size
+
+            # 2. Apply margin and rounded corner mask to the active content
+            if aspect in (VideoAspect.landscape, VideoAspect.four_to_three, VideoAspect.three_to_four):
+                margin = 15
+                inner_w = max(1, content_w - 2 * margin)
+                inner_h = max(1, content_h - 2 * margin)
+                inner_clip = clip_content.resized(new_size=(inner_w, inner_h))
+                
+                mask_im = Image.new("L", (inner_w, inner_h), 0)
+                draw = ImageDraw.Draw(mask_im)
+                draw.rounded_rectangle((0, 0, inner_w, inner_h), radius=48, fill=255)
+                mask_arr = np.array(mask_im) / 255.0
+                mask_clip = ImageClip(mask_arr, is_mask=True).with_duration(inner_clip.duration)
+                masked_inner_clip = inner_clip.with_mask(mask_clip)
+                
+                bg = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
+                clip = CompositeVideoClip([bg, masked_inner_clip.with_position("center")])
+            else:
+                if clip_content.size == (video_width, video_height):
+                    clip = clip_content
+                else:
+                    bg = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
+                    clip = CompositeVideoClip([bg, clip_content.with_position("center")])
+
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
@@ -756,7 +890,8 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if not inner_text:
             return 0, fontsize
         left, top, right, bottom = font.getbbox(inner_text)
-        return right - left, bottom - top
+        ascent, descent = font.getmetrics()
+        return right - left, ascent + descent
 
     width, height = get_text_size(text)
     if width <= max_width:
@@ -959,15 +1094,15 @@ def generate_video(
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
-        max_width = video_width * 0.9
+        max_width = video_width * 0.8
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
             getattr(params, "rounded_subtitle_background", False) and bg_color
         )
         has_subtitle_background = bool(bg_color)
-        pad_x = int(params.font_size * 0.6) if has_subtitle_background else 0
+        pad_x = int(params.font_size * 0.8) if has_subtitle_background else 0
         # 字幕背景需要给文字左右留出明确内边距。先从可用宽度中扣除
-        # padding 再换行，避免长英文或大字号刚好撑满 90% 视频宽度后，
+        # padding 再换行，避免长英文或大字号刚好撑满 80% 视频宽度后，
         # 文字贴到背景框边缘，看起来像被裁切。普通矩形背景和圆角背景
         # 都走这条逻辑；无背景字幕则保持原有最大宽度。
         text_max_width = max(1, int(max_width) - 2 * pad_x)
@@ -992,10 +1127,11 @@ def generate_video(
             wrapped_full = wrapped_txt
 
         interline = int(params.font_size * 0.25)
-        line_count = wrapped_txt.count("\n") + 1
-        vertical_padding = int(params.font_size * 0.5)
+        measure_text_lines = wrapped_full if full_text else wrapped_txt
+        line_count = measure_text_lines.count("\n") + 1
+        vertical_padding = int(params.font_size * 0.7)
         text_clip_margin_y = max(
-            int(params.font_size * 0.5), int(params.stroke_width * 3)
+            int(params.font_size * 0.6), int(params.stroke_width * 4)
         )
         # MoviePy 在 `method=label` 下会自动收缩文本框高度，遇到多行字幕、
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
@@ -1003,21 +1139,30 @@ def generate_video(
         # 背景框与文字本身都能完整渲染出来。
         clip_h = int(txt_height + vertical_padding + (interline * line_count))
 
-        # Measure text width using PIL to adjust the box size dynamically based on the full text
-        try:
-            font = ImageFont.truetype(font_path, params.font_size)
-            text_w = max(
-                int(font.getbbox(line)[2] - font.getbbox(line)[0])
-                for line in wrapped_full.split("\n")
-            )
-        except Exception as exc:
-            logger.warning(
-                f"failed to measure subtitle text width, fallback to max width: {str(exc)}"
-            )
-            text_w = int(max_width)
-
-        is_left_aligned = bool(full_text)
-        box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
+        # Measure text width using PIL to adjust the box size dynamically based on full text
+        if getattr(params, "fixed_subtitle_width", False):
+            box_w = int(max_width)
+            box_w_nobg = int(max_width)
+            is_left_aligned = False
+        else:
+            try:
+                font = ImageFont.truetype(font_path, params.font_size)
+                # Use wrapped_full to ensure the box size remains constant throughout the sentence
+                measure_text = wrapped_full if full_text else wrapped_txt
+                text_w = max(
+                    int(font.getbbox(line)[2] - font.getbbox(line)[0])
+                    for line in measure_text.split("\n")
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"failed to measure subtitle text width, fallback to max width: {str(exc)}"
+                )
+                text_w = int(max_width)
+            
+            box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
+            box_w_nobg = max(1, min(int(max_width), text_w))
+            # Left align progressive text inside the stable box to prevent shifting
+            is_left_aligned = bool(full_text)
 
         if rounded_bg_enabled:
             radius = max(8, int(params.font_size * 0.4))
@@ -1035,7 +1180,8 @@ def generate_video(
                 horizontal_align="left" if is_left_aligned else "center",
                 margin=(pad_x if is_left_aligned else 0, text_clip_margin_y),
             )
-            clip_h = max(clip_h, text_clip.h)
+            # Add a safety margin to container height so that text_clip is never cut off
+            clip_h = max(clip_h, text_clip.h + int(params.font_size * 0.2))
             bg_clip = _rounded_subtitle_background_clip(
                 width=box_w,
                 height=clip_h,
@@ -1045,7 +1191,7 @@ def generate_video(
             )
             text_position = _get_visible_center_position(text_clip, box_w, clip_h)
             if is_left_aligned:
-                text_position = (pad_x, text_position[1])
+                text_position = (pad_x, text_clip_margin_y)
             _clip = CompositeVideoClip(
                 [bg_clip, text_clip.with_position(text_position)],
                 size=(box_w, clip_h),
@@ -1066,7 +1212,8 @@ def generate_video(
                 horizontal_align="left" if is_left_aligned else "center",
                 margin=(pad_x if is_left_aligned else 0, text_clip_margin_y),
             )
-            size = (size[0], max(size[1], text_clip.h))
+            # Add a safety margin to container height so that text_clip is never cut off
+            size = (size[0], max(size[1], text_clip.h + int(params.font_size * 0.2)))
             bg_clip = _rounded_subtitle_background_clip(
                 width=size[0],
                 height=size[1],
@@ -1076,13 +1223,12 @@ def generate_video(
             )
             text_position = _get_visible_center_position(text_clip, size[0], size[1])
             if is_left_aligned:
-                text_position = (pad_x, text_position[1])
+                text_position = (pad_x, text_clip_margin_y)
             _clip = CompositeVideoClip(
                 [bg_clip, text_clip.with_position(text_position)],
                 size=size,
             )
         else:
-            box_w_nobg = max(1, min(int(max_width), text_w))
             size = (box_w_nobg, clip_h)
             text_clip = TextClip(
                 text=wrapped_txt,
@@ -1098,10 +1244,11 @@ def generate_video(
                 horizontal_align="left" if is_left_aligned else "center",
                 margin=(0, text_clip_margin_y),
             )
-            size = (size[0], max(size[1], text_clip.h))
+            # Add a safety margin to container height so that text_clip is never cut off
+            size = (size[0], max(size[1], text_clip.h + int(params.font_size * 0.2)))
             text_position = _get_visible_center_position(text_clip, size[0], size[1])
             if is_left_aligned:
-                text_position = (0, text_position[1])
+                text_position = (0, text_clip_margin_y)
             _clip = CompositeVideoClip(
                 [text_clip.with_position(text_position)],
                 size=size,
@@ -1110,10 +1257,18 @@ def generate_video(
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
+        sub_align_x = getattr(params, "subtitle_horizontal_position", "center")
+        if sub_align_x == "left":
+            pos_x = int(video_width * 0.05)
+        elif sub_align_x == "right":
+            pos_x = int(video_width * 0.95 - _clip.w)
+        else:
+            pos_x = "center"
+
         if params.subtitle_position == "bottom":
-            _clip = _clip.with_position(("center", video_height * 0.90 - _clip.h))
+            _clip = _clip.with_position((pos_x, video_height * 0.90 - _clip.h))
         elif params.subtitle_position == "top":
-            _clip = _clip.with_position(("center", video_height * 0.05))
+            _clip = _clip.with_position((pos_x, video_height * 0.05))
         elif params.subtitle_position == "custom":
             # Ensure the subtitle is fully within the screen bounds
             margin = 10  # Additional margin, in pixels
@@ -1123,9 +1278,9 @@ def generate_video(
             custom_y = max(
                 min_y, min(custom_y, max_y)
             )  # Constrain the y value within the valid range
-            _clip = _clip.with_position(("center", custom_y))
+            _clip = _clip.with_position((pos_x, custom_y))
         else:  # center
-            _clip = _clip.with_position(("center", "center"))
+            _clip = _clip.with_position((pos_x, "center"))
         return _clip
 
     video_clip = _open_video_clip_quietly(video_path)
@@ -1202,6 +1357,10 @@ def generate_video(
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
+    from app.utils.utils import parse_clip_duration
+    _, max_dur = parse_clip_duration(clip_duration)
+    clip_duration = max_dur
+
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
         return []

@@ -128,17 +128,25 @@ def _detect_audio_mime(audio_file: str, audio_bytes: bytes) -> str:
 VIBE_COMBOS = {
     "--- Chọn Vibe nhanh / Quick Vibe Select ---": "",
     "Ngẫu nhiên / Random Vibe": "random",
-    "Mặc định / Default": "nature,background,landscape,sunset,beach,mountains,books, open book, reading book, bookshelf",
-    "Vibe 1: Thiên nhiên (Cinematic Nature)": "Cinematic nature, Peaceful landscape, Healing nature, Spring vibe",
-    "Vibe 2: Chữa lành (Healing Journey)": "Wanderlust cinematic, Healing journey, Peaceful nature slow motion",
-    "Vibe 3: Mưa tâm trạng (Moody Rain)": "Moody rain cinematic, Peaceful rainy day, Healing nature rain, Slow motion rain walking",
-    "Vibe 4: Phố đêm (City Night Rain)": "City night rain, Moody urban night, Cars driving in rain night, Street lights reflection wet road",
-    "Vibe 5: Hoàng hôn (Venice Sunset)": "Venice canal sunset, Boats on river golden hour, European city water sunset, Yellow bus park",
-    "Combo 1: Chữa lành & Bình yên": "Slow living morning, Sunlight through leaves aesthetic, Peaceful nature water ripples, Cozy cabin in the woods, Person reading book nature",
-    "Combo 2: Trầm buồn & Suy ngẫm": "Dark moody rain city, Cinematic lonely walk night, raindrops on window street lights, Looking out train window sad, Foggy pine forest",
-    "Combo 3: Động lực & Kỷ luật": "Running at sunrise cinematic, Studying late night aesthetic, Walking up stairs silhouette, Working out dark gym, Standing top of mountain success",
-    "Combo 4: Tự do & Xê dịch": "Drone shot road trip mountains, Airplane wing clouds sunset, Running in open field freedom, Standing on cliff ocean waves, Cinematic landscape golden hour",
-    "Combo 5: Hoài niệm & Thơ mộng": "Vintage film look aesthetic, Old vinyl record playing, Sunset city warm tones, Holding hands walking away"
+    "Mặc định / Default": "nature, landscape, sunset, beach, forest, mountains",
+    "Vibe 1: Thiên nhiên (Cinematic Nature)": "peaceful forest, mountain landscape, slow motion river, green trees",
+    "Vibe 2: Chữa lành (Healing Journey)": "peaceful nature, walking in forest, calm ocean waves, sunlight through trees",
+    "Vibe 3: Mưa tâm trạng (Moody Rain)": "rainy day forest, rain drops on window, walking in rain, moody rain",
+    "Vibe 4: Phố đêm (City Night Rain)": "city rain night, wet street night, cars driving rain night, night lights bokeh",
+    "Vibe 5: Hoàng hôn (Venice Sunset)": "sunset river, golden hour city, beautiful sunset beach, orange sky",
+    "Combo 1: Chữa lành & Bình yên": "morning sunlight, sunlight leaves, cozy cabin forest, calm water ripple, reading book coffee",
+    "Combo 2: Trầm buồn & Suy ngẫm": "moody rain city, lonely walk night, window rain drops, train window landscape, foggy pine forest",
+    "Combo 3: Động lực & Kỷ luật": "running sunrise, studying late night, climbing stairs silhouette, workout gym, top of mountain",
+    "Combo 4: Tự do & Xê dịch": "road trip mountains, airplane clouds sunset, running field, ocean waves cliff, epic landscape",
+    "Combo 5: Hoài niệm & Thơ mộng": "vintage record player, vinyl spinning, sunset warm city, walking sunset street, nostalgia retro",
+    "Combo 6: Cánh đồng bình yên (Chill Field)": "chill field landscape, peaceful green field, person walking field, walking through grass, sitting grass wind, relaxing under tree",
+    "Combo 7: Đồng ruộng quê hương (Rural Rice Field)": "rice terrace field, green rice field, vietnam rice field, rural countryside, walking on path field, farmers working field",
+    "Combo 8: Nhật Bản Bình Yên (Peaceful Japan)": "japan street sakura, cherry blossom garden, shinto shrine forest, japanese garden zen, fuji mountain landscape",
+    "Combo 9: Phố Nhật Đêm Mưa (Tokyo Moody Alley)": "japan street neon night, tokyo rain alley, cozy tatami room, japanese train window, ramen shop steam",
+    "Combo 10: Nằm cỏ Nhật Bản (Japan Grass Chill)": "lying on grass breeze, relaxing in meadow japan, sakura petals green field, lying under tree wind, cycling countryside japan, dreamy grass landscape",
+    "Combo 11: Nắng hè thơ mộng (Dreamy Summer Sunshine)": "summer houses sunlight, sunlight shining leaves, walking under sun, sunny summer garden, poetic sunbeams outdoor, cozy golden hour sunshine",
+    "Combo 12: Nhà Nhật ấm nắng (Cozy Sunlit Japan Home)": "japanese style room sunlight, tatami room sunshine, cute japanese house exterior, sunny window japan room, warm sunlight shadow home, cute cozy aesthetic japan",
+    "Combo 13: Ánh nắng thanh xuân (Youth Flower Garden)": "youth aesthetic sunlight, person walking flower garden, girl smiling flower meadow, poetic sunny flowers, running through garden sunbeams, youth freedom sunshine"
 }
 
 if "generating_video" not in st.session_state:
@@ -996,14 +1004,14 @@ with left_panel:
                 )
                 excel_rewrite_formula = st.radio(
                     "Chọn công thức viết lại kịch bản",
-                    options=["Ngẫu nhiên", "Công thức 1 (Trích dẫn & Chữa lành)", "Công thức 2 (Trực diện & Thức tỉnh)"],
+                    options=["Ngẫu nhiên", "Công thức 1 (Trích dẫn & Chữa lành)", "Công thức 2 (Trực diện & Thức tỉnh)", "Công thức 3 (Viral Hook)", "Công thức 4 (Podcast Kể chuyện)", "Công thức 5 (Chuyên gia Mở rộng)"],
                     index=0,
                     key="excel_rewrite_formula_radio",
                     help="Chọn công thức cấu trúc kịch bản để AI áp dụng khi viết lại.",
                 )
                 excel_rewrite_genre = st.selectbox(
                     "Chọn thể loại kịch bản",
-                    options=["Ngẫu nhiên", "Chữa lành", "Truyền động lực", "Thức tỉnh / Triết lý", "Bài học cuộc sống", "Tình yêu", "Sự nghiệp & Phát triển bản thân"],
+                    options=["Ngẫu nhiên", "Chữa lành", "Truyền động lực", "Thức tỉnh / Triết lý", "Bài học cuộc sống", "Tình yêu", "Sự nghiệp & Phát triển bản thân", "Gia đình (Cha/Mẹ)", "Thanh xuân (Thời đi học)"],
                     index=0,
                     key="excel_rewrite_genre_select",
                     help="AI sẽ viết kịch bản hướng theo thể loại/chủ đề này.",
@@ -1236,6 +1244,23 @@ with middle_panel:
             
         config.app["video_source"] = params.video_source
 
+        use_cache_first = st.checkbox(
+            "Ưu tiên sử dụng video có sẵn trong Cache (Use Cached Videos First)",
+            value=config.app.get("use_cache_first", False),
+            help="Nếu bật, hệ thống sẽ ưu tiên tìm và sử dụng các video đã được tải về trong thư mục storage/cache_videos trước. Nếu không có hoặc thiếu, hệ thống mới tìm tải trực tuyến hoặc dùng video ngẫu nhiên khác trong cache.",
+        )
+        config.app["use_cache_first"] = use_cache_first
+
+        if use_cache_first:
+            use_random_cache = st.checkbox(
+                tr("Use Random Cached Videos"),
+                value=config.app.get("use_random_cache", False),
+                help=tr("Use Random Cached Videos Help"),
+            )
+            config.app["use_random_cache"] = use_random_cache
+        else:
+            config.app["use_random_cache"] = False
+
         if "local" in params.video_source:
             # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
             local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
@@ -1291,6 +1316,9 @@ with middle_panel:
         video_aspect_ratios = [
             (tr("Portrait"), VideoAspect.portrait.value),
             (tr("Landscape"), VideoAspect.landscape.value),
+            (tr("Square"), VideoAspect.square.value),
+            (tr("Landscape 4:3"), VideoAspect.four_to_three.value),
+            (tr("Portrait 3:4"), VideoAspect.three_to_four.value),
         ]
         # Coverr 库 99% 是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
         # 用 source-specific widget key 让每个 source 各自记忆 aspect 选择:
@@ -1312,9 +1340,44 @@ with middle_panel:
         )
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
-        params.video_clip_duration = st.selectbox(
-            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=1
+        # Source Material Aspect Selectbox
+        material_aspect_options = [
+            (tr("Auto-match display ratio"), None),
+            (tr("Landscape"), VideoAspect.landscape.value),
+            (tr("Portrait"), VideoAspect.portrait.value),
+            (tr("Square"), VideoAspect.square.value),
+        ]
+        saved_material_aspect = config.app.get("material_aspect", None)
+        saved_material_aspect_values = [item[1] for item in material_aspect_options]
+        if saved_material_aspect not in saved_material_aspect_values:
+            saved_material_aspect = None
+        selected_material_aspect_index = saved_material_aspect_values.index(saved_material_aspect)
+        
+        selected_material_aspect_index = st.selectbox(
+            tr("Source Material Ratio"),
+            options=range(len(material_aspect_options)),
+            index=selected_material_aspect_index,
+            format_func=lambda x: material_aspect_options[x][0],
+            key=f"material_aspect_for_{params.video_source}",
         )
+        val = material_aspect_options[selected_material_aspect_index][1]
+        params.material_aspect = VideoAspect(val) if val else None
+        config.app["material_aspect"] = val
+
+        saved_duration_val = config.ui.get("video_clip_duration_range", [6, 10])
+        if not isinstance(saved_duration_val, list) or len(saved_duration_val) < 2:
+            saved_duration_val = [6, 10]
+
+        clip_duration_range = st.slider(
+            tr("Clip Duration Range (seconds)"),
+            min_value=2,
+            max_value=20,
+            value=(int(saved_duration_val[0]), int(saved_duration_val[1])),
+            step=1,
+            help=tr("Clip Duration Range Help")
+        )
+        params.video_clip_duration = f"{clip_duration_range[0]}-{clip_duration_range[1]}"
+        config.ui["video_clip_duration_range"] = list(clip_duration_range)
         params.video_count = st.selectbox(
             tr("Number of Videos Generated Simultaneously"),
             options=[1, 2, 3, 4, 5],
@@ -1330,6 +1393,48 @@ with middle_panel:
                 key="match_materials_to_script",
             )
             config.app["match_materials_to_script"] = params.match_materials_to_script
+
+            video_aspect_mode_options = [
+                (tr("Fit (Letterbox)"), "fit"),
+                (tr("Fill (Crop)"), "crop"),
+            ]
+            saved_video_aspect_mode = config.app.get("video_aspect_mode", "fit")
+            saved_video_aspect_mode_values = [item[1] for item in video_aspect_mode_options]
+            if saved_video_aspect_mode not in saved_video_aspect_mode_values:
+                saved_video_aspect_mode = "fit"
+            selected_aspect_mode_index = saved_video_aspect_mode_values.index(saved_video_aspect_mode)
+            selected_aspect_mode_index = st.selectbox(
+                tr("Video Fit Mode"),
+                options=range(len(video_aspect_mode_options)),
+                index=selected_aspect_mode_index,
+                format_func=lambda x: video_aspect_mode_options[x][0],
+            )
+            params.video_aspect_mode = video_aspect_mode_options[selected_aspect_mode_index][1]
+            config.app["video_aspect_mode"] = params.video_aspect_mode
+
+            video_filter_options = [
+                (tr("No Filter"), "none"),
+                (tr("Black & White"), "blackwhite"),
+                (tr("Vintage"), "vintage"),
+                (tr("Teal & Orange"), "teal_orange"),
+                (tr("Cyberpunk"), "cyberpunk"),
+                (tr("Warm"), "warm"),
+                (tr("Cool"), "cool"),
+                (tr("Invert Colors"), "invert"),
+            ]
+            saved_video_filter = config.app.get("video_filter", "none")
+            saved_video_filter_values = [item[1] for item in video_filter_options]
+            if saved_video_filter not in saved_video_filter_values:
+                saved_video_filter = "none"
+            selected_filter_index = saved_video_filter_values.index(saved_video_filter)
+            selected_filter_index = st.selectbox(
+                tr("Video Filter"),
+                options=range(len(video_filter_options)),
+                index=selected_filter_index,
+                format_func=lambda x: video_filter_options[x][0],
+            )
+            params.video_filter = video_filter_options[selected_filter_index][1]
+            config.app["video_filter"] = params.video_filter
 
             video_codec_options = [
                 ("libx264 (CPU)", "libx264"),
@@ -1683,6 +1788,48 @@ with middle_panel:
                 key="vbee_app_id_input",
             )
 
+            st.write(tr("Vbee Pause Settings (seconds)"))
+            col1, col2 = st.columns(2)
+            with col1:
+                vbee_pause_period = st.number_input(
+                    tr("Period Pause (Dấu chấm)"),
+                    min_value=0.0,
+                    max_value=5.0,
+                    value=float(config.ui.get("vbee_pause_period", 0.7)),
+                    step=0.05,
+                    key="vbee_pause_period_input"
+                )
+                vbee_pause_comma = st.number_input(
+                    tr("Comma Pause (Dấu phẩy)"),
+                    min_value=0.0,
+                    max_value=5.0,
+                    value=float(config.ui.get("vbee_pause_comma", 0.35)),
+                    step=0.05,
+                    key="vbee_pause_comma_input"
+                )
+            with col2:
+                vbee_pause_semicolon = st.number_input(
+                    tr("Semicolon Pause (Dấu chấm phẩy)"),
+                    min_value=0.0,
+                    max_value=5.0,
+                    value=float(config.ui.get("vbee_pause_semicolon", 0.5)),
+                    step=0.05,
+                    key="vbee_pause_semicolon_input"
+                )
+                vbee_pause_newline = st.number_input(
+                    tr("Newline Pause (Xuống dòng)"),
+                    min_value=0.0,
+                    max_value=5.0,
+                    value=float(config.ui.get("vbee_pause_newline", 1.2)),
+                    step=0.05,
+                    key="vbee_pause_newline_input"
+                )
+            config.ui["vbee_pause_period"] = vbee_pause_period
+            config.ui["vbee_pause_comma"] = vbee_pause_comma
+            config.ui["vbee_pause_semicolon"] = vbee_pause_semicolon
+            config.ui["vbee_pause_newline"] = vbee_pause_newline
+            config.save_config()
+
             st.info(
                 "Vbee TTS Settings:\n"
                 "- Get your API key and App ID at https://vbee.vn/\n"
@@ -1752,7 +1899,7 @@ with middle_panel:
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
             options=[0.6, 0.8, 1.0, 1.2, 1.5, 1.7, 2.0, 3.0, 4.0, 5.0],
-            index=5,
+            index=6,
         )
 
         params.voice_rate = st.selectbox(
@@ -1809,7 +1956,7 @@ with middle_panel:
         params.bgm_volume = st.selectbox(
             tr("Background Music Volume"),
             options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            index=6,
+            index=7,
         )
 
 with right_panel:
@@ -1824,6 +1971,29 @@ with right_panel:
             help=tr("Word-level Subtitles Help")
         )
         config.ui["word_level_subtitle"] = params.word_level_subtitle
+        
+        if params.word_level_subtitle:
+            saved_word_level_subtitle_type = config.ui.get("word_level_subtitle_type", "sliding")
+            type_options = [
+                (tr("Sliding (Trượt/Cuộn)"), "sliding"),
+                (tr("Cumulative (Cộng dồn)"), "cumulative"),
+                (tr("Single (Chữ đơn)"), "single"),
+            ]
+            type_labels = [opt[0] for opt in type_options]
+            saved_type_index = 0
+            for idx_t, opt_t in enumerate(type_options):
+                if opt_t[1] == saved_word_level_subtitle_type:
+                    saved_type_index = idx_t
+                    break
+            
+            selected_type_label = st.selectbox(
+                tr("Word-level Subtitle Style"),
+                options=type_labels,
+                index=saved_type_index
+            )
+            selected_type_value = type_options[type_labels.index(selected_type_label)][1]
+            params.word_level_subtitle_type = selected_type_value
+            config.ui["word_level_subtitle_type"] = selected_type_value
         font_names = get_all_fonts()
         saved_font_name = config.ui.get("font_name", "MicrosoftYaHeiBold.ttc")
         saved_font_name_index = 0
@@ -1854,6 +2024,26 @@ with right_panel:
         )
         params.subtitle_position = subtitle_positions[selected_index][1]
         config.ui["subtitle_position"] = params.subtitle_position
+
+        subtitle_horizontal_positions = [
+            (tr("Left"), "left"),
+            (tr("Center"), "center"),
+            (tr("Right"), "right"),
+        ]
+        saved_subtitle_horizontal_position = config.ui.get("subtitle_horizontal_position", "center")
+        saved_horiz_index = 1
+        for i, (_, pos_value) in enumerate(subtitle_horizontal_positions):
+            if pos_value == saved_subtitle_horizontal_position:
+                saved_horiz_index = i
+                break
+        selected_horiz_index = st.selectbox(
+            tr("Horizontal Position"),
+            index=saved_horiz_index,
+            options=range(len(subtitle_horizontal_positions)),
+            format_func=lambda x: subtitle_horizontal_positions[x][0],
+        )
+        params.subtitle_horizontal_position = subtitle_horizontal_positions[selected_horiz_index][1]
+        config.ui["subtitle_horizontal_position"] = params.subtitle_horizontal_position
 
         if params.subtitle_position == "custom":
             saved_custom_position = config.ui.get("custom_position", 70.0)
@@ -2035,6 +2225,164 @@ with right_panel:
                     config.app["coverr_api_keys"].remove(delete_key)
                     config.save_config()
                     st.success(tr("Coverr API Key deleted successfully"))
+
+    with st.expander("📦 Quản lý Cache & Tải trước Video (Local Cache Manager)", expanded=False):
+        st.subheader("Tải trước Video theo từ khóa")
+        st.markdown(
+            "Tải trước các đoạn video chất lượng từ Pexels/Pixabay/Coverr về thư mục `storage/cache_videos`. "
+            "Sau đó, bạn có thể tự mở thư mục này để duyệt, xóa các video xấu trước khi tạo video chính thức."
+        )
+        
+        # Select from sample combo vibes
+        def on_bulk_combo_change():
+            val = st.session_state.get("bulk_combo_selectbox", "")
+            if val == "Tất cả bộ từ khóa mẫu / All Combos":
+                # Collect all keywords from all combos
+                all_kws = []
+                for k, v in VIBE_COMBOS.items():
+                    if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe", "Mặc định / Default"]:
+                        all_kws.append(v)
+                st.session_state["bulk_keywords_input"] = ", ".join(all_kws)
+            elif val == "Chọn ngẫu nhiên 1 Combo / Random Combo":
+                import random
+                valid_combos = [k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe", "Mặc định / Default"]]
+                chosen = random.choice(valid_combos)
+                st.session_state["bulk_keywords_input"] = VIBE_COMBOS[chosen]
+            elif val and val != "--- Chọn Vibe nhanh / Quick Vibe Select ---":
+                st.session_state["bulk_keywords_input"] = VIBE_COMBOS[val]
+                
+        st.selectbox(
+            "Chọn bộ từ khóa mẫu (Combo Vibes) để lấy từ khóa nhanh",
+            options=["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Tất cả bộ từ khóa mẫu / All Combos", "Chọn ngẫu nhiên 1 Combo / Random Combo"] + [
+                k for k in VIBE_COMBOS.keys() if k not in ["--- Chọn Vibe nhanh / Quick Vibe Select ---", "Ngẫu nhiên / Random Vibe"]
+            ],
+            key="bulk_combo_selectbox",
+            on_change=on_bulk_combo_change
+        )
+        
+        if "bulk_keywords_input" not in st.session_state:
+            st.session_state["bulk_keywords_input"] = "morning sunlight, foggy pine forest, running sunrise, rainy day forest"
+            
+        bulk_keywords = st.text_area(
+            "Nhập các từ khóa cần tải (mỗi từ khóa cách nhau bằng dấu phẩy hoặc xuống dòng)",
+            key="bulk_keywords_input",
+            help="Ví dụ: morning sunlight, foggy forest",
+        )
+        
+        bulk_sources = st.multiselect(
+            "Nguồn video tải",
+            options=["pexels", "pixabay", "coverr"],
+            default=["pexels", "pixabay"],
+            key="bulk_sources_select"
+        )
+        
+        bulk_aspect = st.selectbox(
+            "Định dạng khung hình video",
+            options=["Dọc (Portrait - 9:16)", "Ngang (Landscape - 16:9)"],
+            index=0,
+            key="bulk_aspect_select"
+        )
+        
+        bulk_count = st.number_input(
+            "Số lượng video tối đa muốn tải cho MỖI từ khóa",
+            min_value=1,
+            max_value=100,
+            value=10,
+            step=1,
+            key="bulk_count_input"
+        )
+        
+        if st.button("Bắt đầu tải về Cache (Start Bulk Download)", use_container_width=True):
+            if not bulk_keywords.strip():
+                st.error("Vui lòng nhập ít nhất một từ khóa.")
+            elif not bulk_sources:
+                st.error("Vui lòng chọn ít nhất một nguồn tải video.")
+            else:
+                # Run bulk downloader
+                import re
+                from app.services.material import search_videos_pexels, search_videos_pixabay, search_videos_coverr, save_video
+                from app.models.schema import VideoAspect
+                
+                # Parse keywords
+                raw_keywords = re.split(r'[\n,]+', bulk_keywords)
+                keywords = [k.strip() for k in raw_keywords if k.strip()]
+                
+                # Determine orientation
+                aspect_mode = VideoAspect.portrait if "Dọc" in bulk_aspect else VideoAspect.landscape
+                
+                # Set up search functions
+                search_funcs = []
+                if "pexels" in bulk_sources:
+                    search_funcs.append(("pexels", search_videos_pexels))
+                if "pixabay" in bulk_sources:
+                    search_funcs.append(("pixabay", search_videos_pixabay))
+                if "coverr" in bulk_sources:
+                    search_funcs.append(("coverr", search_videos_coverr))
+                
+                progress_bar = st.progress(0.0)
+                status_text = st.empty()
+                
+                total_kws = len(keywords)
+                success_count = 0
+                error_count = 0
+                
+                for idx, kw in enumerate(keywords):
+                    status_text.write(f"🔍 Đang tìm kiếm video cho từ khóa: **{kw}** ({idx+1}/{total_kws})...")
+                    progress_bar.progress(idx / total_kws)
+                    all_items = []
+                    
+                    for src_name, search_fn in search_funcs:
+                        try:
+                            # Verify API key is present
+                            if src_name == "pexels" and not config.app.get("pexels_api_keys", ""):
+                                continue
+                            if src_name == "pixabay" and not config.app.get("pixabay_api_keys", ""):
+                                continue
+                            if src_name == "coverr" and not config.app.get("coverr_api_keys", ""):
+                                continue
+                                
+                            items = search_fn(
+                                search_term=kw,
+                                minimum_duration=3, # minimum 3 seconds
+                                video_aspect=aspect_mode
+                            )
+                            items = items[:bulk_count]
+                            all_items.extend(items)
+                        except Exception as e:
+                            logger.error(f"Lỗi tìm kiếm nguồn {src_name} cho '{kw}': {e}")
+                    
+                    if not all_items:
+                        status_text.write(f"❌ Không tìm thấy video trực tuyến nào cho từ khóa: **{kw}** ({idx+1}/{total_kws}).")
+                        error_count += 1
+                        import time
+                        time.sleep(1)
+                        continue
+                    
+                    total_items = len(all_items)
+                    
+                    for sub_idx, item in enumerate(all_items):
+                        status_text.write(
+                            f"📥 Từ khóa **{kw}** ({idx+1}/{total_kws}):\n"
+                            f"Đang tải video **{sub_idx+1}/{total_items}**..."
+                        )
+                        sub_progress = (idx + (sub_idx / total_items)) / total_kws
+                        progress_bar.progress(min(sub_progress, 1.0))
+                        
+                        try:
+                            save_video(
+                                video_url=item.url,
+                                save_dir="", # default cache_videos dir
+                                search_term=kw
+                            )
+                        except Exception as e:
+                            logger.error(f"Lỗi tải video {sub_idx+1} cho '{kw}': {e}")
+                    
+                    success_count += 1
+                    progress_bar.progress((idx + 1) / total_kws)
+                
+                status_text.empty()
+                progress_bar.progress(1.0)
+                st.success(f"🎉 Hoàn thành tải kịch bản: Thành công {success_count}/{total_kws} từ khóa. Vui lòng kiểm tra thư mục `storage/cache_videos`!")
 
 if st.session_state.get("active_tab") != "📊 Excel Auto Mode":
     start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary", disabled=is_generating)
@@ -2279,24 +2627,76 @@ if st.session_state.get("run_excel_generation", False):
                 excel_rewrite_formula_choice = st.session_state.get("excel_rewrite_formula_radio", "Ngẫu nhiên")
                 if "ngẫu nhiên" in excel_rewrite_formula_choice.lower():
                     import random
-                    excel_rewrite_formula_choice = random.choice(["Công thức 1", "Công thức 2"])
+                    excel_rewrite_formula_choice = random.SystemRandom().choice(["Công thức 1", "Công thức 2", "Công thức 3", "Công thức 4", "Công thức 5"])
                 excel_custom_prompt_choice = st.session_state.get("excel_custom_prompt_input", "")
                 excel_rewrite_genre_choice = st.session_state.get("excel_rewrite_genre_select", "Ngẫu nhiên")
+                
                 excel_rewrite_niche_choice = st.session_state.get("excel_rewrite_niche_radio", "Ngách 1")
+                if "ngẫu nhiên" in excel_rewrite_niche_choice.lower():
+                    import random
+                    excel_rewrite_niche_choice = random.SystemRandom().choice(["Ngách 1", "Ngách 2", "Ngách 3", "Ngách 4", "Ngách 5"])
 
                 if selected_mode_key == "rewrite_template":
                     # Randomize genre if selected
-                    genre_options = ["Chữa lành", "Truyền động lực", "Thức tỉnh / Triết lý", "Bài học cuộc sống", "Tình yêu", "Sự nghiệp & Phát triển bản thân"]
+                    genre_options = ["Chữa lành", "Truyền động lực", "Thức tỉnh / Triết lý", "Bài học cuộc sống", "Tình yêu", "Sự nghiệp & Phát triển bản thân", "Gia đình (Cha/Mẹ)", "Thanh xuân (Thời đi học)"]
                     import random
                     if excel_rewrite_genre_choice == "Ngẫu nhiên":
-                        selected_genre = random.choice(genre_options)
+                        selected_genre = random.SystemRandom().choice(genre_options)
                     else:
                         selected_genre = excel_rewrite_genre_choice
 
                     if not current_subject:
                         current_subject = f"{selected_genre} - Kịch bản {idx + 1}"
 
-                    if "ngách 2" in excel_rewrite_niche_choice.lower():
+                    niche_mapping = {
+                        "ngách 2": "tài chính, tiền bạc, đầu tư hoặc tư duy làm giàu",
+                        "ngách 3": "sức khỏe, thực phẩm chức năng, làm đẹp hoặc lối sống lành mạnh",
+                        "ngách 4": "phong thủy, năng lượng nhà ở, xem bói hoặc trang trí phòng",
+                        "ngách 5": "tập thể dục tại nhà, rèn luyện vóc dáng hoặc kỷ luật bản thân",
+                    }
+                    current_niche_desc = "động lực, phát triển bản thân, triết lý sống"
+                    for k, v in niche_mapping.items():
+                        if k in excel_rewrite_niche_choice.lower():
+                            current_niche_desc = v
+                            break
+
+                    if "công thức 3" in excel_rewrite_formula_choice.lower():
+                        formula_instruct = (
+                            f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                            f"Hãy tự nghĩ ra một chủ đề ý nghĩa về {current_niche_desc} và viết một kịch bản hoàn toàn mới theo cấu trúc Công thức 3 (Viral Hook Ngắn):\n"
+                            "1. Hook: BẮT BUỘC BẮT ĐẦU bằng một Viral Hook cực mạnh (chọn một trong các hướng: tò mò, gây sốc, đi ngược số đông, cảnh báo sai lầm, mẹo lười biếng, hoặc kể chuyện đồng cảm). Hãy ghép nối Hook thật tự nhiên vào câu mở đầu, đi thẳng vào vấn đề, không vòng vo chào hỏi.\n"
+                            "2. Phát triển: Trình bày nội dung một cách súc tích, giữ nhịp độ nhanh.\n"
+                            "3. Kết luận: Đưa ra lời khuyên hoặc kêu gọi hành động ngắn gọn.\n\n"
+                            "Lưu ý quan trọng:\n"
+                            "- Viết trực tiếp nội dung kịch bản hoàn chỉnh (không ghi nhãn 1. Hook, 2. Phát triển, v.v., hãy nối các câu lại một cách tự nhiên).\n"
+                            "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu (không quá 12-15 từ mỗi câu). Chia nhỏ các ý dài thành nhiều câu ngắn. Tối ưu hóa các dấu câu để dẫn dắt giọng đọc AI (TTS) ngắt nghỉ tự nhiên: dùng dấu phẩy (,) thường xuyên để ngắt nhịp hơi ngắn; dấu chấm (.) để nghỉ hẳn hơi; dấu chấm cảm (!) ở câu cần nhấn mạnh/lên tông giọng cảm xúc; dấu hỏi (?) ở các câu hỏi tu từ; dấu ba chấm (...) ở các đoạn lắng đọng để tạo khoảng lặng đầy suy ngẫm.\n"
+                            "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                        )
+                    elif "công thức 4" in excel_rewrite_formula_choice.lower():
+                        formula_instruct = (
+                            f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                            f"Hãy tự nghĩ ra một chủ đề ý nghĩa về {current_niche_desc} và viết một kịch bản Podcast sâu sắc theo cấu trúc Công thức 4 (Podcast Kể chuyện & Đồng cảm):\n"
+                            "1. Hook: BẮT ĐẦU bằng một Hook Kể chuyện & Đồng cảm (ví dụ: 'Tôi đã thử [Cách làm] trong 30 ngày, và nó hoàn toàn làm đảo lộn cuộc sống của tôi...', hoặc 'Ước gì có ai đó tát tỉnh và nói cho tôi điều này trước khi tôi lao vào...').\n"
+                            "2. Thân bài: Phân tích nguyên nhân gốc rễ, chia sẻ góc khuất mà ít ai thấy, và đưa ra một quan điểm trái chiều nhẹ nhàng để người nghe suy ngẫm.\n"
+                            "3. Kết luận: Rút ra bài học nhân sinh, chữa lành.\n\n"
+                            "Lưu ý quan trọng:\n"
+                            "- Viết trực tiếp nội dung kịch bản hoàn chỉnh.\n"
+                            "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Trầm ấm, chân thành, mang tính chất tâm tình, chữa lành. Tuyệt đối không dùng phong cách hô hào, vội vã. Sử dụng nhiều dấu phẩy (,) để ngắt nhịp chậm rãi, dùng dấu chấm lửng (...) để tạo khoảng lặng suy tư.\n"
+                            "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
+                        )
+                    elif "công thức 5" in excel_rewrite_formula_choice.lower():
+                        formula_instruct = (
+                            f"Thể loại kịch bản cần hướng tới: {selected_genre}.\n"
+                            f"Hãy phân tích sâu một chủ đề ý nghĩa về {current_niche_desc} dưới góc nhìn chuyên gia theo cấu trúc Công thức 5 (Chuyên gia Mở rộng):\n"
+                            "1. Mở đầu: BẮT ĐẦU bằng Hook Expert Explainer (ví dụ: 'Đây là một quan sát cực kỳ kỳ lạ về cách mà [Chủ đề] thực sự vận hành sau lưng bạn...' hoặc '3 dấu hiệu cảnh báo đỏ cho thấy phương pháp hiện tại của bạn đang chuẩn bị toang thảm hại.').\n"
+                            "2. Phát triển: Trình bày sự thật một cách logic. Hạ bệ một lầm tưởng phổ biến (Ví dụ: 'Phương pháp X thực chất là một cú lừa, đây mới là điều thực sự hiệu quả...').\n"
+                            "3. Kết luận: Cung cấp giải pháp thực tế hoặc một 'Lazy Hack' (cách giải quyết nhanh gọn).\n\n"
+                            "Lưu ý quan trọng:\n"
+                            "- Viết trực tiếp nội dung kịch bản hoàn chỉnh.\n"
+                            "- GIỌNG ĐIỆU CẢM XÚC & NHẤN NHÁ: Khách quan, sắc sảo, đánh trúng insight. Các câu viết ra phải CỰC KỲ NGẮN, gãy gọn và giàu nhịp điệu. Tối ưu hóa dấu câu (.,?!...) để ngắt nghỉ tự nhiên.\n"
+                            "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'."
+                        )
+                    elif "ngách 2" in excel_rewrite_niche_choice.lower():
                         # Niche 2: Finance
                         if "công thức 1" in excel_rewrite_formula_choice.lower() or "vanmau1" in excel_rewrite_formula_choice.lower():
                             formula_instruct = (
@@ -2442,6 +2842,19 @@ if st.session_state.get("run_excel_generation", False):
                                 "- Về xưng hô trong kịch bản: Luôn xưng hô thân thiện, lịch sự bằng cách gọi người nghe/người xem là 'bạn' và xưng là 'mình'. Tuyệt đối không sử dụng các từ xưng hô suồng sã hoặc thô tục như 'mày', 'tao'."
                             )
                     
+                    # Append crucial AI punctuation and voicing guidelines for Vbee
+                    ai_voicing_rules = (
+                        "\n--- QUY TẮC BẮT BUỘC VỀ DẤU CÂU & NHỊP ĐỌC CỦA GIỌNG ĐỌC AI (Đặc biệt quan trọng):\n"
+                        "1. KHÔNG ĐƯỢC phép tách một câu hoàn chỉnh về mặt ngữ nghĩa/ngữ pháp thành nhiều dòng độc lập bằng dấu chấm (.) hoặc xuống dòng trống (phím Enter). Dấu chấm (.) và phím Enter sẽ tạo ra nhịp nghỉ quá dài (1 - 1.5 giây) từ phía AI làm câu văn bị gãy nát, mất đi sự kết nối mượt mà của ngữ pháp.\n"
+                        "2. NẾU CÂU DÀI HOẶC Ý LIÊN KẾT NHAU, hãy sử dụng dấu phẩy (,) để AI ngắt hơi nhẹ, hoặc dùng dấu ba chấm (...) để tạo khoảng lặng cảm xúc mà không làm đứt gãy mạch câu. Chỉ dùng dấu chấm (.) hoặc xuống dòng khi kết thúc hoàn toàn một câu độc lập, trọn vẹn ý nghĩa.\n"
+                        "3. Ví dụ viết SAI: 'Không phải tìm một người hoàn hảo. \\n Mà là học cách nhìn ra vẻ đẹp.' (Sẽ bị gãy câu).\n"
+                        "4. Ví dụ viết ĐÚNG: 'Không phải tìm một người hoàn hảo, mà là học cách nhìn ra vẻ đẹp.' hoặc 'Không phải tìm một người hoàn hảo... mà là học cách nhìn ra vẻ đẹp.'\n"
+                        "5. TỐI ƯU HÓA PHÁT ÂM RIÊNG CHO VBEE (Động cơ TTS tiếng Việt):\n"
+                        "   - Tránh viết tắt tiếng Anh hoặc thuật ngữ chuyên ngành viết liền (như AI, TikTok, Shopee, FOMO, comment, view). Hãy Việt hóa nhẹ hoặc viết tách rời chữ để Vbee đọc chuẩn (ví dụ: dùng 'A I' thay vì 'AI', 'Tik Tok' thay vì 'TikTok', 'Sóp bi' hoặc 'Shopee' cách rời thay vì 'Shopee', 'bình luận' thay vì 'comment', 'lượt xem' thay vì 'view', 'nỗi sợ bị bỏ lỡ' thay vì 'FOMO').\n"
+                        "   - Viết các số lượng, tỷ lệ phần trăm và tiền tệ hoàn toàn bằng chữ tiếng Việt rõ chữ để Vbee không đọc sai chữ cái viết tắt (ví dụ: viết 'năm mươi nghìn đồng' thay vì '50k', 'chín mươi phần trăm' thay vì '90%', 'hai mươi bốn nghìn héc' thay vì '24k-st').\n"
+                        "   - Không đưa bất kỳ emoji hay ký tự đặc biệt (@, #, &, *, _) vào nội dung văn bản đọc để tránh Vbee đọc to tên ký tự đó hoặc bị vấp khi phát âm.\n"
+                    )
+                    formula_instruct += ai_voicing_rules
                     current_script_prompt = formula_instruct
                 elif selected_mode_key == "free_creation":
                     current_script_prompt = excel_custom_prompt_choice if excel_custom_prompt_choice else params.video_script_prompt
@@ -2475,6 +2888,7 @@ if st.session_state.get("run_excel_generation", False):
                 run_params.video_script_prompt = current_script_prompt
                 run_params.video_script = ""
                 run_params.video_terms = current_terms
+                run_params.rewrite_formula = excel_rewrite_formula_choice
                 
                 # Apply Excel-specific Advanced Script Settings overrides
                 run_params.paragraph_number = st.session_state.get("excel_paragraph_number_input", params.paragraph_number)
@@ -2621,6 +3035,11 @@ if st.session_state.get("run_excel_generation", False):
                     
             st.balloons()
             st.success(f"🎉 Hoàn thành tạo hàng loạt {num_excel_videos} video!")
+    except Exception as e:
+        import traceback
+        with open("error_log.txt", "w", encoding="utf-8") as f:
+            f.write(traceback.format_exc())
+        st.error(f"Lỗi nghiêm trọng: {e}")
     finally:
         st.session_state["generating_video"] = False
         st.rerun()

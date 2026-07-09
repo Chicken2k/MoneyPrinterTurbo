@@ -657,6 +657,73 @@ class TestVideoService(unittest.TestCase):
                     result = vd._get_temp_audio_dir("/some/output/dir")
                     self.assertEqual(result, "/some/output/dir")
 
+    def test_combine_videos_supports_all_filters(self):
+        """
+        Verify that combine_videos runs without issues and applies
+        each of the supported visual/color filters.
+        """
+        class _FakeAudioClip:
+            duration = 5.0
+            def close(self):
+                pass
+
+        class _FilterFakeVideoClip:
+            def __init__(self, duration, size=(1080, 1920)):
+                self.duration = duration
+                self.size = size
+                self.w, self.h = size
+
+            def subclipped(self, start, end):
+                return _FilterFakeVideoClip(end - start, self.size)
+
+            def resized(self, *args, **kwargs):
+                return self
+
+            def image_transform(self, *args, **kwargs):
+                return self
+
+            def with_effects(self, *args, **kwargs):
+                return self
+
+            def with_position(self, *args, **kwargs):
+                return self
+
+            def close(self):
+                pass
+
+        video_durations = {
+            "clip-1.mp4": 3.0,
+            "clip-2.mp4": 4.0,
+        }
+
+        def _open_fake_video_clip(video_path):
+            return _FilterFakeVideoClip(video_durations[video_path])
+
+        supported_filters = ["none", "blackwhite", "vintage", "teal_orange", "cyberpunk", "warm", "cool", "invert"]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+            audio_file = os.path.join(temp_dir, "audio.mp3")
+
+            for v_filter in supported_filters:
+                with self.subTest(video_filter=v_filter):
+                    with patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()):
+                        with patch.object(vd, "_open_video_clip_quietly", side_effect=_open_fake_video_clip):
+                            with patch.object(vd, "_write_videofile_with_codec_fallback") as write_mock:
+                                with patch.object(vd, "concat_video_clips_with_ffmpeg"):
+                                    with patch.object(vd, "delete_files"):
+                                        result = vd.combine_videos(
+                                            combined_video_path=combined_video_path,
+                                            video_paths=list(video_durations.keys()),
+                                            audio_file=audio_file,
+                                            video_aspect=vd.VideoAspect.portrait,
+                                            video_concat_mode=vd.VideoConcatMode.sequential,
+                                            video_transition_mode=None,
+                                            max_clip_duration=10,
+                                            video_filter=v_filter,
+                                        )
+                                        self.assertEqual(result, combined_video_path)
+
 
 if __name__ == "__main__":
     unittest.main()

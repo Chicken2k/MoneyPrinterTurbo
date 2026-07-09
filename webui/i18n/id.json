@@ -158,6 +158,21 @@
     "Coverr API Key deleted successfully": "Kunci API Coverr berhasil dihapus",
     "Advanced Video Settings": "Pengaturan Video Lanjutan",
     "Video Encoder": "Encoder Video",
-    "Video Encoder Help": "Opsi lanjutan. libx264 adalah default teraman. Saat encoder perangkat keras dipilih, aplikasi akan kembali ke libx264 jika FFmpeg, GPU, atau driver saat ini tidak dapat menggunakannya."
+    "Video Encoder Help": "Opsi lanjutan. libx264 adalah default teraman. Saat encoder perangkat keras dipilih, aplikasi akan kembali ke libx264 jika FFmpeg, GPU, atau driver saat ini tidak dapat menggunakannya.",
+    "Single (Chữ đơn)": "Satu kata (Single)",
+    "Horizontal Position": "Posisi horizontal",
+    "Left": "Kiri",
+    "Right": "Kanan",
+    "Use Random Cached Videos": "Gunakan Video Cache Acak (Abaikan Kata Kunci)",
+    "Use Random Cached Videos Help": "Jika aktif, sistem akan memilih video acak dari cache lokal, mengabaikan kata kunci pencarian setiap adegan.",
+    "Video Filter": "Filter Video",
+    "No Filter": "Tanpa Filter",
+    "Black & White": "Hitam & Putih",
+    "Vintage": "Klasik (Vintage)",
+    "Teal & Orange": "Teal & Orange",
+    "Cyberpunk": "Cyberpunk",
+    "Warm": "Hangat",
+    "Cool": "Dingin",
+    "Invert Colors": "Balikkan Warna"
   }
 }

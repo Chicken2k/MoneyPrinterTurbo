@@ -18,7 +18,32 @@ compute_type = config.whisper.get("compute_type", "int8")
 model = None
 
 
-def create(audio_file, subtitle_file: str = ""):
+def is_cjk_char(char: str) -> bool:
+    return any(
+        [
+            "\u4e00" <= char <= "\u9fff",  # CJK Unified Ideographs
+            "\u3040" <= char <= "\u309f",  # Hiragana
+            "\u30a0" <= char <= "\u30ff",  # Katakana
+            "\uac00" <= char <= "\ud7af",  # Hangul Syllables
+        ]
+    )
+
+
+def capitalize_first_letter(s: str) -> str:
+    if not s:
+        return s
+    for i, char in enumerate(s):
+        if char.isalpha():
+            return s[:i] + char.upper() + s[i+1:]
+    return s
+
+
+def create(
+    audio_file,
+    subtitle_file: str = "",
+    word_level_subtitle: bool = False,
+    word_level_subtitle_type: str = "sliding",
+):
     global model
     if WhisperModel is None:
         logger.warning("faster_whisper not available, skipping whisper subtitle generation")
@@ -78,46 +103,89 @@ def create(audio_file, subtitle_file: str = ""):
             {"msg": seg_text, "start_time": seg_start, "end_time": seg_end}
         )
 
-    for segment in segments:
-        words_idx = 0
-        words_len = len(segment.words)
-
-        seg_start = 0
-        seg_end = 0
-        seg_text = ""
-
-        if segment.words:
-            is_segmented = False
-            for word in segment.words:
-                if not is_segmented:
-                    seg_start = word.start
-                    is_segmented = True
-
-                seg_end = word.end
-                # If it contains punctuation, then break the sentence.
-                seg_text += word.word
-
-                if utils.str_contains_punctuation(word.word):
-                    # remove last char
-                    seg_text = seg_text[:-1]
-                    if not seg_text:
+    if word_level_subtitle:
+        for segment in segments:
+            words_list = []
+            if segment.words:
+                for idx, word in enumerate(segment.words):
+                    w_text = word.word.strip()
+                    if not w_text:
                         continue
+                    words_list.append(w_text)
 
-                    recognized(seg_text, seg_start, seg_end)
+                    has_cjk = any(any(is_cjk_char(char) for char in w) for w in words_list)
+                    join_char = "" if has_cjk else " "
 
-                    is_segmented = False
-                    seg_text = ""
+                    if word_level_subtitle_type == "sliding":
+                        display_words = [w for w in words_list if w][-3:]
+                        cumulative_text = join_char.join(display_words)
+                    elif word_level_subtitle_type == "single":
+                        cumulative_text = w_text
+                    else:
+                        max_words_per_line = 6
+                        lines = []
+                        for idx_w in range(0, len(words_list), max_words_per_line):
+                            line_words = words_list[idx_w:idx_w + max_words_per_line]
+                            lines.append(join_char.join(line_words))
+                        cumulative_text = "\n".join(lines)
 
-                if words_idx == 0 and segment.start < word.start:
-                    seg_start = word.start
-                if words_idx == (words_len - 1) and segment.end > word.end:
+                    cumulative_text = capitalize_first_letter(cumulative_text)
+
+                    c_start = word.start
+                    if idx < len(segment.words) - 1:
+                        c_end = segment.words[idx + 1].start
+                    else:
+                        c_end = word.end
+
+                    if c_start < c_end:
+                        subtitles.append(
+                            {"msg": cumulative_text.strip(), "start_time": c_start, "end_time": c_end}
+                        )
+
+                    # Reset word accumulator if sentence-ending or breathing punctuation is encountered
+                    if any(p in w_text for p in [".", "?", "!", "。", "？", "！", "...", "…", ",", "，", "、", ";", "；", ":", "："]):
+                        words_list = []
+    else:
+        for segment in segments:
+            words_idx = 0
+            words_len = len(segment.words)
+
+            seg_start = 0
+            seg_end = 0
+            seg_text = ""
+
+            if segment.words:
+                is_segmented = False
+                for word in segment.words:
+                    if not is_segmented:
+                        seg_start = word.start
+                        is_segmented = True
+
                     seg_end = word.end
-                words_idx += 1
+                    # If it contains punctuation, then break the sentence.
+                    seg_text += word.word
 
-        if not seg_text:
-            continue
+                    if utils.str_contains_punctuation(word.word):
+                        # remove last char
+                        seg_text = seg_text[:-1]
+                        if not seg_text:
+                            continue
 
-        recognized(seg_text, seg_start, seg_end)
+                        recognized(seg_text, seg_start, seg_end)
+
+                        is_segmented = False
+                        seg_text = ""
+
+                    if words_idx == 0 and segment.start < word.start:
+                        seg_start = word.start
+                    if words_idx == (words_len - 1) and segment.end > word.end:
+                        seg_end = word.end
+                    words_idx += 1
+
+            if not seg_text:
+                continue
+
+            recognized(seg_text, seg_start, seg_end)
 
     end = timer()
 

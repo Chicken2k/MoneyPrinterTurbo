@@ -162,6 +162,21 @@
     "Coverr API Key deleted successfully": "API Key de Coverr eliminada correctamente",
     "Advanced Video Settings": "Configuración avanzada de vídeo",
     "Video Encoder": "Codificador de vídeo",
-    "Video Encoder Help": "Opción avanzada. libx264 es el predeterminado más seguro. Cuando se selecciona un codificador de hardware, la aplicación vuelve a libx264 si el FFmpeg, GPU o controlador actuales no pueden usarlo."
+    "Video Encoder Help": "Opción avanzada. libx264 es el predeterminado más seguro. Cuando se selecciona un codificador de hardware, la aplicación vuelve a libx264 si el FFmpeg, GPU o controlador actuales no pueden usarlo.",
+    "Single (Chữ đơn)": "Palabra única (Single)",
+    "Horizontal Position": "Posición horizontal",
+    "Left": "Izquierda",
+    "Right": "Derecha",
+    "Use Random Cached Videos": "Usar videos aleatorios de la caché (ignorar palabras clave)",
+    "Use Random Cached Videos Help": "Si está activado, el sistema seleccionará videos aleatorios de la caché local, ignorando los términos de búsqueda de cada escena.",
+    "Video Filter": "Filtro de vídeo",
+    "No Filter": "Sin filtro",
+    "Black & White": "Blanco y negro",
+    "Vintage": "Vintage",
+    "Teal & Orange": "Teal y naranja",
+    "Cyberpunk": "Cyberpunk",
+    "Warm": "Cálido",
+    "Cool": "Frío",
+    "Invert Colors": "Invertir colores"
   }
 }

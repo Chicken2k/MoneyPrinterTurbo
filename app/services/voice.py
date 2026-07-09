@@ -172,8 +172,11 @@ def get_vbee_voices() -> list[str]:
     voices_with_gender = [
         ("s_sg_male_thientam_ytstable_vc", "Thiện Tâm"),
         ("n_hanoi_male_namnhenhangamap_story_vc", "Nam Nhẹ nhàng Ấm áp"),
-        ("hn_female_ngochuyen_full_48k-fhg", "HN - Ngọc Huyền"),
+        ("hn_female_ngochuyen_full_48k-fhg", "HN - Ngọc Huyền (48k)"),
+        ("hn_female_ngochuyen_full_24k-st", "HN - Ngọc Huyền (24k)"),
         ("hn_male_minhquan_yt-stable", "HN - Minh Quân"),
+        ("n_hanoi_female_nguyetnga2_book_vc", "Nguyệt Nga Podcast"),
+        ("n_hanoi_male_nhabaohoangnam_news_vc", "HN - Nhà báo Hoàng Nam"),
     ]
     return [f"vbee:{code}:{name}" for code, name in voices_with_gender]
 
@@ -487,6 +490,15 @@ def is_cjk_char(char: str) -> bool:
             (0xF900, 0xFAFF),
         ]
     )
+
+
+def capitalize_first_letter(s: str) -> str:
+    if not s:
+        return s
+    for i, char in enumerate(s):
+        if char.isalpha():
+            return s[:i] + char.upper() + s[i+1:]
+    return s
 
 
 class SubtitleItemList(list):
@@ -1388,6 +1400,10 @@ def vbee_tts(
         logger.error("Vbee TTS text is empty")
         return None
 
+    # Note: Vbee REST API (/v1/tts) does not support SSML tags (like <speak> or <break>)
+    # and will literally read them out loud. Plain text should be sent instead.
+    # Punctuation pauses are configured by the user in their Vbee Account Dashboard.
+
     api_key = config.vbee.get("api_key", "")
     app_id = config.vbee.get("app_id", "")
     if not api_key or not app_id:
@@ -1704,7 +1720,10 @@ def _write_subtitle_items(sub_items: list[str], subtitle_file: str) -> bool:
 
 
 def _build_subtitle_items_from_edge_cues(
-    sub_maker: SubMaker, script_lines: list[str], word_level_subtitle: bool = False
+    sub_maker: SubMaker,
+    script_lines: list[str],
+    word_level_subtitle: bool = False,
+    word_level_subtitle_type: str = "sliding",
 ) -> list[str]:
     """
     将 edge_tts 7.x 的细粒度 `cues` 聚合为按脚本断句/逐字累加 progressive 的 SRT 片段。
@@ -1739,8 +1758,21 @@ def _build_subtitle_items_from_edge_cues(
 
                 has_cjk = any(any(is_cjk_char(char) for char in w) for w in words_list)
                 join_char = "" if has_cjk else " "
-                cumulative_text = join_char.join(words_list)
+                if word_level_subtitle_type == "sliding":
+                    # Limit the cumulative text to at most the last 3 words
+                    display_words = [w for w in words_list if w][-3:]
+                    cumulative_text = join_char.join(display_words)
+                elif word_level_subtitle_type == "single":
+                    cumulative_text = c_text
+                else:
+                    max_words_per_line = 6
+                    lines = []
+                    for idx_w in range(0, len(words_list), max_words_per_line):
+                        line_words = words_list[idx_w:idx_w + max_words_per_line]
+                        lines.append(join_char.join(line_words))
+                    cumulative_text = "\n".join(lines)
 
+                cumulative_text = capitalize_first_letter(cumulative_text)
                 c_start = int(c.start.total_seconds() * 10000000)
                 if idx == 0:
                     c_start = current_start_time
@@ -1785,7 +1817,10 @@ def _build_subtitle_items_from_edge_cues(
 
 
 def _build_subtitle_items_from_legacy_submaker(
-    sub_maker: SubMaker, script_lines: list[str], word_level_subtitle: bool = False
+    sub_maker: SubMaker,
+    script_lines: list[str],
+    word_level_subtitle: bool = False,
+    word_level_subtitle_type: str = "sliding",
 ) -> list[str]:
     """
     将项目原有 `subs/offset` 结构聚合为按脚本断句的 SRT 片段。
@@ -1823,8 +1858,19 @@ def _build_subtitle_items_from_legacy_submaker(
 
                 has_cjk = any(any(is_cjk_char(char) for char in w) for w in words_list)
                 join_char = "" if has_cjk else " "
-                cumulative_text = join_char.join(words_list)
+                if word_level_subtitle_type == "sliding":
+                    # Limit the cumulative text to at most the last 3 words
+                    display_words = [w for w in words_list if w][-3:]
+                    cumulative_text = join_char.join(display_words)
+                else:
+                    max_words_per_line = 4
+                    lines = []
+                    for idx_w in range(0, len(words_list), max_words_per_line):
+                        line_words = words_list[idx_w:idx_w + max_words_per_line]
+                        lines.append(join_char.join(line_words))
+                    cumulative_text = "\n".join(lines)
 
+                cumulative_text = capitalize_first_letter(cumulative_text)
                 c_start = off[0]
                 if idx == 0:
                     c_start = start_time
@@ -1873,6 +1919,7 @@ def create_subtitle(
     text: str,
     subtitle_file: str,
     word_level_subtitle: bool = False,
+    word_level_subtitle_type: str = "sliding",
 ):
     """
     优化字幕文件
@@ -1885,11 +1932,17 @@ def create_subtitle(
     try:
         if hasattr(sub_maker, "cues") and sub_maker.cues:
             sub_items = _build_subtitle_items_from_edge_cues(
-                sub_maker, script_lines, word_level_subtitle=word_level_subtitle
+                sub_maker,
+                script_lines,
+                word_level_subtitle=word_level_subtitle,
+                word_level_subtitle_type=word_level_subtitle_type,
             )
         else:
             sub_items = _build_subtitle_items_from_legacy_submaker(
-                sub_maker, script_lines, word_level_subtitle=word_level_subtitle
+                sub_maker,
+                script_lines,
+                word_level_subtitle=word_level_subtitle,
+                word_level_subtitle_type=word_level_subtitle_type,
             )
 
         sentence_index = getattr(sub_items, "sentence_index", len(sub_items))
